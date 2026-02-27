@@ -1,9 +1,39 @@
 [project]
 name = "liljon"
 version = "0.1.0"
-description = "Async-first Robinhood API client library"
+description = "Async-first Robinhood API client library with typed Pydantic models, encrypted token caching, and full CLI"
 license = "MIT"
 requires-python = ">=3.12"
+readme = "README.md"
+authors = [
+    { name = "Jeff Chappo", email = "jchappo@users.noreply.github.com" },
+]
+keywords = [
+    "robinhood",
+    "trading",
+    "async",
+    "api-client",
+    "stocks",
+    "options",
+    "crypto",
+    "futures",
+    "finance",
+    "pydantic",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Financial and Insurance Industry",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Framework :: Pydantic :: 2",
+    "Topic :: Office/Business :: Financial :: Investment",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+]
 dependencies = [
     "httpx>=0.28",
     "pydantic>=2.0",
@@ -11,6 +41,11 @@ dependencies = [
     "click>=8.0",
     "rich>=13.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/jchappo/liljon"
+Repository = "https://github.com/jchappo/liljon"
+Issues = "https://github.com/jchappo/liljon/issues"
 
 [project.scripts]
 liljon = "liljon.cli:cli"
