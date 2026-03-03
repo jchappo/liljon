@@ -2319,6 +2319,49 @@ async def discovery_chart_bounds(ctx: click.Context):
             console.print(model_panel(data, title="Chart Bounds"))
 
 
+@discovery.command("feed")
+@click.option("--limit", type=int, default=10, help="Max articles to show.")
+@click.pass_context
+@async_command
+@handle_errors
+async def discovery_feed(ctx: click.Context, limit: int):
+    """General news feed (from dora.robinhood.com)."""
+    async with get_authenticated_client() as client:
+        articles = await client.discovery.get_feed()
+        articles = articles[:limit]
+        if _use_json(ctx):
+            output_json(articles)
+        else:
+            cols = [
+                ("published_at", "Published"),
+                ("source", "Source"),
+                ("title", "Title"),
+            ]
+            console.print(dict_table(articles, cols, title="News Feed"))
+
+
+@discovery.command("instrument-feed")
+@click.argument("instrument_id")
+@click.option("--limit", type=int, default=10, help="Max articles to show.")
+@click.pass_context
+@async_command
+@handle_errors
+async def discovery_instrument_feed(ctx: click.Context, instrument_id: str, limit: int):
+    """News feed for a specific instrument (from dora.robinhood.com)."""
+    async with get_authenticated_client() as client:
+        articles = await client.discovery.get_instrument_feed(instrument_id)
+        articles = articles[:limit]
+        if _use_json(ctx):
+            output_json(articles)
+        else:
+            cols = [
+                ("published_at", "Published"),
+                ("source", "Source"),
+                ("title", "Title"),
+            ]
+            console.print(dict_table(articles, cols, title=f"News Feed — {instrument_id[:8]}..."))
+
+
 @screeners.command("query")
 @click.option("--indicator", "-i", multiple=True, required=True, help="Indicator in KEY=OPTION_ID format. For MULTI_SELECT, comma-separate IDs. Use 'screeners indicators' to find valid keys and option IDs.")
 @click.option("--sort", default=None, help="Column key to sort by.")

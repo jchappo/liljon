@@ -21,6 +21,27 @@ from liljon.models.discovery import (
 )
 
 
+def _flatten_feed(data: dict | list) -> list[dict]:
+    """Extract feed_article items from the dora feed response.
+
+    The feed returns sections (each with a 'contents' list). We flatten all
+    content items of type 'feed_article' into a single list, merging the
+    nested 'data' dict up to the top level for easy access.
+    """
+    sections = data if isinstance(data, list) else data.get("results", [data])
+    articles: list[dict] = []
+    for section in sections:
+        for item in section.get("contents", []):
+            if item.get("content_type") != "feed_article":
+                continue
+            article = {**item.get("data", {})}
+            article["id"] = item.get("id")
+            article["reason"] = item.get("reason")
+            article["category"] = section.get("category")
+            articles.append(article)
+    return articles
+
+
 class DiscoveryAPI:
     """Discovery data: analyst ratings, hedge funds, insiders, short interest, and more."""
 
@@ -179,6 +200,24 @@ class DiscoveryAPI:
         """Fetch NBBO (National Best Bid/Offer) summary for an instrument."""
         data = await self._transport.get(ep.bonfire_nbbo_summary(instrument_id))
         return NbboSummary(**data)
+
+    # ── News Feed ─────────────────────────────────────────────────────────
+
+    async def get_feed(self) -> list[dict]:
+        """Fetch general news/social feed (from dora.robinhood.com).
+
+        Returns flattened list of feed articles extracted from all sections.
+        """
+        data = await self._transport.get(ep.feed())
+        return _flatten_feed(data)
+
+    async def get_instrument_feed(self, instrument_id: str) -> list[dict]:
+        """Fetch news/social feed for a specific instrument (from dora.robinhood.com).
+
+        Returns flattened list of feed articles extracted from all sections.
+        """
+        data = await self._transport.get(ep.instrument_feed(instrument_id))
+        return _flatten_feed(data)
 
     # ── Search ───────────────────────────────────────────────────────────
 
