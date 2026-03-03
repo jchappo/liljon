@@ -63,6 +63,7 @@ class HttpTransport:
         url: str,
         json: dict[str, Any] | None = None,
         data: dict[str, Any] | None = None,
+        params: dict[str, Any] | None = None,
         headers: dict[str, str] | None = None,
         raise_on_error: bool = True,
     ) -> dict[str, Any]:
@@ -71,9 +72,21 @@ class HttpTransport:
         When raise_on_error is False, the JSON body is returned even for non-2xx
         responses (matching robin_stocks behavior for auth endpoints).
         """
-        resp = await self._client.post(url, json=json, data=data, headers=headers)
+        resp = await self._client.post(url, json=json, data=data, params=params, headers=headers)
         if raise_on_error:
             self._raise_for_status(resp)
+        return resp.json()
+
+    async def patch(
+        self,
+        url: str,
+        json: dict[str, Any] | None = None,
+        params: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
+        """Send a PATCH request and return the parsed JSON response."""
+        resp = await self._client.patch(url, json=json, params=params, headers=headers)
+        self._raise_for_status(resp)
         return resp.json()
 
     async def delete(

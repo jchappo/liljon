@@ -27,6 +27,12 @@ class Screener(BaseModel):
 class IndicatorOption(BaseModel):
     """Selectable option within a filter indicator."""
 
+    id: str = ""
+    title: str = ""
+    subtitle: str | None = None
+    secondary_filter: dict | None = None
+    column_key: str | None = None
+    # Legacy fields
     label: str = ""
     value: str = ""
 

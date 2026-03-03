@@ -13,7 +13,9 @@ from __future__ import annotations
 
 from liljon._http import HttpTransport
 from liljon.api.account import AccountAPI
+from liljon.api.alerts import AlertsAPI
 from liljon.api.crypto import CryptoAPI
+from liljon.api.discovery import DiscoveryAPI
 from liljon.api.futures import FuturesAPI
 from liljon.api.indexes import IndexesAPI
 from liljon.api.markets import MarketsAPI
@@ -44,6 +46,7 @@ class RobinhoodClient:
         self._auth = AuthFlow(self._transport, self._token_cache)
 
         # API namespaces
+        self.alerts = AlertsAPI(self._transport)
         self.stocks = StocksAPI(self._transport)
         self.options = OptionsAPI(self._transport)
         self.crypto = CryptoAPI(self._transport)
@@ -53,6 +56,7 @@ class RobinhoodClient:
         self.orders = OrdersAPI(self._transport)
         self.markets = MarketsAPI(self._transport)
         self.screeners = ScreenersAPI(self._transport)
+        self.discovery = DiscoveryAPI(self._transport)
 
     # ── Auth delegation ─────────────────────────────────────────────────
 

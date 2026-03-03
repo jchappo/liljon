@@ -107,6 +107,22 @@ async def test_get_news(stocks_api, httpx_mock):
     assert news[0].title == "Apple earnings beat"
 
 
+async def test_get_news_market_wide(stocks_api, httpx_mock):
+    httpx_mock.add_response(
+        url="https://api.robinhood.com/midlands/news/",
+        json={
+            "results": [
+                {"title": "Markets rally on Fed news", "source": "AP", "url": "https://example.com/2"},
+                {"title": "Oil prices surge", "source": "Reuters", "url": "https://example.com/3"},
+            ],
+            "next": None,
+        },
+    )
+    news = await stocks_api.get_news()
+    assert len(news) == 2
+    assert news[0].title == "Markets rally on Fed news"
+
+
 async def test_get_latest_price(stocks_api, httpx_mock):
     httpx_mock.add_response(
         url="https://api.robinhood.com/marketdata/quotes/?symbols=AAPL",

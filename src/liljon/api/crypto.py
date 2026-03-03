@@ -29,7 +29,12 @@ class CryptoAPI:
         pairs = await self.get_pairs()
         symbol_upper = symbol.upper()
         for pair in pairs:
-            if pair.symbol.upper() == symbol_upper or pair.code.upper() == symbol_upper:
+            asset_code = (pair.asset_currency or {}).get("code", "")
+            if (
+                pair.symbol.upper() == symbol_upper
+                or (pair.code and pair.code.upper() == symbol_upper)
+                or asset_code.upper() == symbol_upper
+            ):
                 return pair
         return None
 

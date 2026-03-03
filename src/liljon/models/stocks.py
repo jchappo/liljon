@@ -54,15 +54,24 @@ class Fundamentals(BaseModel):
     high: Decimal | None = None
     low: Decimal | None = None
     volume: Decimal | None = None
+    overnight_volume: Decimal | None = None
+    bounds: str | None = None
+    market_date: str | None = None
     average_volume: Decimal | None = None
     average_volume_2_weeks: Decimal | None = None
+    average_volume_30_days: Decimal | None = None
     high_52_weeks: Decimal | None = None
+    high_52_weeks_date: str | None = None
     low_52_weeks: Decimal | None = None
+    low_52_weeks_date: str | None = None
     market_cap: Decimal | None = None
     dividend_yield: Decimal | None = None
+    float: Decimal | None = None
     pe_ratio: Decimal | None = None
     pb_ratio: Decimal | None = None
+    shares_outstanding: Decimal | None = None
     description: str | None = None
+    instrument: str | None = None
     headquarters_city: str | None = None
     headquarters_state: str | None = None
     sector: str | None = None
@@ -70,6 +79,8 @@ class Fundamentals(BaseModel):
     num_employees: int | None = None
     year_founded: int | None = None
     ceo: str | None = None
+    payable_date: str | None = None
+    ex_dividend_date: str | None = None
 
 
 class HistoricalBar(BaseModel):

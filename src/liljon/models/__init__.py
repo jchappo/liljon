@@ -1,16 +1,40 @@
 """Re-export all Pydantic models for convenient imports."""
 
+from liljon.models.alerts import AlertSetting, AlertSettings
 from liljon.models.account import (
     AccountProfile,
     Dividend,
+    LivePortfolio,
     PhoenixAccount,
     PortfolioProfile,
     Position,
+    Subscription,
+    SweepInterest,
+    UserProfile,
     Watchlist,
     WatchlistItem,
 )
 from liljon.models.common import PaginatedResponse, TimestampMixin
 from liljon.models.crypto import CryptoHistoricalBar, CryptoHolding, CryptoPair, CryptoQuote
+from liljon.models.discovery import (
+    AnalystRating,
+    ChartBounds,
+    Earnings,
+    EquitySummary,
+    EquitySummaryDailyTransaction,
+    EtpDetails,
+    HedgeFundSummary,
+    HedgeFundTransaction,
+    HedgeFundTransactions,
+    InsiderSummary,
+    InsiderTransaction,
+    InsiderTransactions,
+    MarketIndex,
+    NbboSummary,
+    ShortInterest,
+    SimilarInstrument,
+    SimilarInstruments,
+)
 from liljon.models.futures import FuturesAccount, FuturesContract, FuturesOrder, FuturesQuote
 from liljon.models.indexes import IndexClose, IndexFundamentals, IndexInstrument, IndexQuote
 from liljon.models.options import OptionChain, OptionInstrument, OptionMarketData, OptionPosition
@@ -30,16 +54,27 @@ from liljon.models.stocks import Fundamentals, HistoricalBar, NewsArticle, Stock
 
 __all__ = [
     "AccountProfile",
+    "AlertSetting",
+    "AlertSettings",
+    "AnalystRating",
+    "ChartBounds",
     "CryptoHistoricalBar",
     "CryptoHolding",
     "CryptoPair",
     "CryptoQuote",
     "Dividend",
+    "Earnings",
+    "EquitySummary",
+    "EquitySummaryDailyTransaction",
+    "EtpDetails",
     "Fundamentals",
     "FuturesAccount",
     "FuturesContract",
     "FuturesOrder",
     "FuturesQuote",
+    "HedgeFundSummary",
+    "HedgeFundTransaction",
+    "HedgeFundTransactions",
     "HistoricalBar",
     "Indicator",
     "IndicatorCategory",
@@ -49,6 +84,12 @@ __all__ = [
     "IndexFundamentals",
     "IndexInstrument",
     "IndexQuote",
+    "InsiderSummary",
+    "InsiderTransaction",
+    "InsiderTransactions",
+    "LivePortfolio",
+    "MarketIndex",
+    "NbboSummary",
     "NewsArticle",
     "OptionChain",
     "OptionInstrument",
@@ -64,9 +105,15 @@ __all__ = [
     "ScanResult",
     "Screener",
     "ScreenerFilter",
+    "ShortInterest",
+    "SimilarInstrument",
+    "SimilarInstruments",
     "StockInstrument",
     "StockQuote",
+    "Subscription",
+    "SweepInterest",
     "TimestampMixin",
+    "UserProfile",
     "Watchlist",
     "WatchlistItem",
 ]

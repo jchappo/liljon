@@ -69,3 +69,126 @@ class OptionsAPI:
     async def get_orders(self) -> list[dict]:
         """Fetch option order history."""
         return await paginate_results(self._transport, ep.option_orders())
+
+    async def get_aggregate_positions(
+        self,
+        account_numbers: list[str] | None = None,
+        nonzero: bool = True,
+    ) -> list[dict]:
+        """Fetch aggregated option positions grouped by strategy.
+
+        Args:
+            account_numbers: Account numbers to filter by.
+            nonzero: Only return non-zero positions.
+        """
+        params: dict[str, str] = {"nonzero": str(nonzero)}
+        if account_numbers:
+            params["account_numbers"] = ",".join(account_numbers)
+        results = await paginate_results(self._transport, ep.option_aggregate_positions(), params=params)
+        return results
+
+    async def get_strategies(self, strategy_codes: list[str]) -> list[dict]:
+        """Fetch option strategy definitions/pricing.
+
+        Args:
+            strategy_codes: Strategy codes (e.g. '{option_id}_L1').
+        """
+        params = {"strategy_codes": ",".join(strategy_codes)}
+        data = await self._transport.get(ep.option_strategies(), params=params)
+        return data.get("results", [])
+
+    async def get_chain_collateral(self, chain_id: str, account_number: str | None = None) -> dict:
+        """Fetch collateral requirements for an option chain.
+
+        Args:
+            chain_id: Option chain ID.
+            account_number: Account to check collateral for.
+        """
+        params = {}
+        if account_number:
+            params["account_number"] = account_number
+        return await self._transport.get(ep.option_chain_collateral(chain_id), params=params)
+
+    async def get_events(
+        self,
+        account_numbers: list[str] | None = None,
+        chain_ids: list[str] | None = None,
+    ) -> list[dict]:
+        """Fetch option events (expirations, assignments, exercises).
+
+        Args:
+            account_numbers: Account numbers to filter by.
+            chain_ids: Chain IDs to filter by.
+        """
+        params: dict[str, str] = {}
+        if account_numbers:
+            params["account_numbers"] = ",".join(account_numbers)
+        if chain_ids:
+            params["chain_ids"] = ",".join(chain_ids)
+        results = await paginate_results(self._transport, ep.option_events(), params=params)
+        return results
+
+    async def get_market_data_batch(self, option_ids: list[str]) -> list[OptionMarketData]:
+        """Fetch batch option market data (greeks, prices) for multiple contracts.
+
+        Args:
+            option_ids: List of option instrument IDs.
+        """
+        params = {"ids": ",".join(option_ids)}
+        data = await self._transport.get(ep.option_marketdata_batch(), params=params)
+        results = data.get("results", [])
+        return [OptionMarketData(**r) for r in results if r is not None]
+
+    async def get_strategy_quotes(
+        self,
+        ids: list[str],
+        ratios: list[str] | None = None,
+        types: list[str] | None = None,
+    ) -> dict:
+        """Fetch strategy-level quotes with greeks.
+
+        Args:
+            ids: Option instrument IDs.
+            ratios: Ratio quantities for each leg.
+            types: Position types ('long', 'short') for each leg.
+        """
+        params: dict[str, str] = {"ids": ",".join(ids)}
+        if ratios:
+            params["ratios"] = ",".join(ratios)
+        if types:
+            params["types"] = ",".join(types)
+        return await self._transport.get(ep.option_strategy_quotes(), params=params)
+
+    async def get_pnl_chart(
+        self,
+        legs: str,
+        order_price: str,
+        quantity: str,
+        underlying_price: str | None = None,
+    ) -> dict:
+        """Fetch options profit-and-loss chart data.
+
+        Args:
+            legs: Leg definitions (URL-encoded strategy legs).
+            order_price: Order price.
+            quantity: Number of contracts.
+            underlying_price: Current underlying price.
+        """
+        params: dict[str, str] = {
+            "legs": legs,
+            "order_price": order_price,
+            "quantity": quantity,
+        }
+        if underlying_price:
+            params["underlying_price"] = underlying_price
+        return await self._transport.get(ep.option_pnl_chart(), params=params)
+
+    async def get_breakevens(self, strategy_code: str, average_cost: str) -> dict:
+        """Fetch breakeven price calculations for an option position.
+
+        Args:
+            strategy_code: Strategy code (e.g. '{option_id}_L1').
+            average_cost: Average cost of the position.
+        """
+        params = {"strategy_code": strategy_code, "average_cost": average_cost}
+        return await self._transport.get(ep.option_breakevens(), params=params)

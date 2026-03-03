@@ -97,12 +97,76 @@ class StocksAPI:
         results = data.get("historicals", [])
         return [HistoricalBar(**r) for r in results if r is not None]
 
-    async def get_news(self, symbol: str) -> list[NewsArticle]:
-        """Fetch news articles for a symbol."""
-        results = await paginate_results(self._transport, ep.news(symbol.upper()))
+    async def get_news(self, symbol: str | None = None) -> list[NewsArticle]:
+        """Fetch news articles for a symbol, or market-wide news if no symbol given."""
+        url = ep.news(symbol.upper()) if symbol else ep.news()
+        results = await paginate_results(self._transport, url)
         return [NewsArticle(**r) for r in results]
 
     async def get_latest_price(self, symbols: list[str]) -> dict[str, str | None]:
         """Fetch the latest trade price for symbols. Returns {symbol: price_string}."""
         quotes = await self.get_quotes(symbols)
         return {q.symbol: str(q.last_trade_price) if q.last_trade_price is not None else None for q in quotes}
+
+    async def get_quote_by_id(self, instrument_id: str) -> StockQuote:
+        """Fetch a single stock quote by instrument ID."""
+        data = await self._transport.get(ep.quote_by_id(instrument_id))
+        return StockQuote(**data)
+
+    async def get_fundamentals_by_id(
+        self,
+        instrument_id: str,
+        bounds: str = "24_5",
+        include_inactive: bool = True,
+    ) -> Fundamentals:
+        """Fetch fundamentals by instrument ID with session-aware bounds.
+
+        Args:
+            instrument_id: Instrument UUID.
+            bounds: Session bounds — '24_5', 'regular', 'extended', 'trading'.
+            include_inactive: Include inactive instruments.
+        """
+        params = {"bounds": bounds, "include_inactive": str(include_inactive).lower()}
+        data = await self._transport.get(ep.fundamentals_by_id(instrument_id), params=params)
+        return Fundamentals(**data)
+
+    async def get_fundamentals_history(
+        self,
+        instrument_ids: list[str],
+        start_date: str | None = None,
+    ) -> list[dict]:
+        """Fetch short fundamentals history for instruments over a date range.
+
+        Args:
+            instrument_ids: List of instrument UUIDs.
+            start_date: Start date (YYYY-MM-DD). Defaults to ~3 months ago.
+        """
+        params: dict[str, str] = {"ids": ",".join(instrument_ids)}
+        if start_date:
+            params["start_date"] = start_date
+        data = await self._transport.get(ep.fundamentals_short(), params=params)
+        return data.get("data", [])
+
+    async def get_historicals_by_ids(
+        self,
+        instrument_ids: list[str],
+        interval: str = "5minute",
+        span: str = "day",
+        bounds: str = "24_5",
+    ) -> list[dict]:
+        """Fetch batch historicals by instrument IDs.
+
+        Args:
+            instrument_ids: List of instrument UUIDs.
+            interval: Bar interval — '5minute', '10minute', 'hour', 'day', 'week'.
+            span: Time span — 'day', 'week', 'month', '3month', 'year', '5year'.
+            bounds: Session bounds — '24_5', 'regular', 'extended', 'trading'.
+        """
+        params = {
+            "ids": ",".join(instrument_ids),
+            "interval": interval,
+            "span": span,
+            "bounds": bounds,
+        }
+        data = await self._transport.get(ep.historicals_by_ids(), params=params)
+        return data.get("results", [])

@@ -42,7 +42,9 @@ class MarketsAPI:
         data = await self._transport.get(ep.categories())
         return data.get("results", [])
 
-    async def get_category_instruments(self, tag: str) -> list[dict[str, Any]]:
-        """Fetch instruments in a discovery category."""
-        data = await self._transport.get(ep.category_instruments(tag))
-        return data.get("results", [])
+    async def get_category_instruments(self, tag: str) -> dict[str, Any]:
+        """Fetch a discovery category with its instrument URLs.
+
+        Returns dict with 'name', 'slug', 'description', 'instruments' (list of URLs).
+        """
+        return await self._transport.get(ep.category_instruments(tag))

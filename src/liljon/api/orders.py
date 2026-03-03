@@ -135,3 +135,50 @@ class OrdersAPI:
 
     async def sell_stop_loss(self, symbol: str, quantity: float, stop_price: float, **kwargs) -> OrderResult:
         return await self.place_stock_order(symbol, quantity, "sell", "stoploss", stop_price=stop_price, **kwargs)
+
+    # ── Extended Order Endpoints ─────────────────────────────────────────
+
+    async def get_combo_orders(
+        self,
+        account_numbers: list[str] | None = None,
+        states: str | None = None,
+    ) -> list[dict]:
+        """Fetch combo/multi-leg orders.
+
+        Args:
+            account_numbers: Account numbers to filter by.
+            states: Order states filter (e.g. 'pending', 'filled').
+        """
+        params: dict[str, str] = {}
+        if account_numbers:
+            params["account_numbers"] = ",".join(account_numbers)
+        if states:
+            params["states"] = states
+        results = await paginate_results(self._transport, ep.combo_orders(), params=params)
+        return results
+
+    async def calculate_fees(
+        self,
+        instrument_id: str,
+        quantity: str,
+        price: str,
+        side: str,
+        is_otc: bool = False,
+    ) -> dict:
+        """Calculate fees for a stock order before placing it.
+
+        Args:
+            instrument_id: Instrument UUID.
+            quantity: Number of shares.
+            price: Price per share.
+            side: 'buy' or 'sell'.
+            is_otc: Whether the instrument is OTC.
+        """
+        payload = {
+            "instrument_id": instrument_id,
+            "quantity": quantity,
+            "price": price,
+            "side": side,
+            "is_otc": str(is_otc).lower(),
+        }
+        return await self._transport.post(ep.orders_fees(), json=payload)

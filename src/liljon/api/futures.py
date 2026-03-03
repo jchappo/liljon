@@ -19,11 +19,25 @@ class FuturesAPI:
     def __init__(self, transport: HttpTransport) -> None:
         self._transport = transport
 
-    async def get_contracts(self, symbol: str | None = None) -> list[FuturesContract]:
-        """Fetch futures contracts, optionally filtered by underlying symbol."""
-        params = {}
-        if symbol:
-            params["underlying"] = symbol.upper()
+    async def get_contracts(
+        self,
+        contract_ids: list[str] | None = None,
+        product_ids: list[str] | None = None,
+    ) -> list[FuturesContract]:
+        """Fetch futures contracts by contract or product IDs.
+
+        Args:
+            contract_ids: Specific contract UUIDs to fetch.
+            product_ids: Product IDs to fetch all contracts for (e.g. 'BTC', 'ES').
+                          At least one of contract_ids or product_ids must be provided.
+        """
+        params: dict[str, str] = {}
+        if contract_ids:
+            params["contract_ids"] = ",".join(contract_ids)
+        if product_ids:
+            params["product_ids"] = ",".join(product_ids)
+        if not params:
+            raise ValueError("At least one of contract_ids or product_ids must be provided")
         results = await paginate_results(
             self._transport, ep.futures_contracts(), params=params, headers=_FUTURES_HEADERS
         )
@@ -84,3 +98,57 @@ class FuturesAPI:
                     realized_pnl -= value
 
         return {"realized_pnl": realized_pnl}
+
+    async def get_product(self, product_id: str) -> dict:
+        """Fetch futures product metadata (contract specs).
+
+        Args:
+            product_id: Futures product ID (e.g. for /ES, /NQ).
+        """
+        return await self._transport.get(ep.futures_products(product_id), headers=_FUTURES_HEADERS)
+
+    async def get_closes(self, contract_ids: list[str]) -> list[dict]:
+        """Fetch previous close prices for futures contracts."""
+        params = {"ids": ",".join(contract_ids)}
+        data = await self._transport.get(ep.futures_closes(), params=params, headers=_FUTURES_HEADERS)
+        return data.get("results", [])
+
+    async def get_closes_range(self, contract_id: str, start: str) -> list[dict]:
+        """Fetch historical close range for a futures contract.
+
+        Args:
+            contract_id: Futures contract ID.
+            start: Start datetime (ISO format).
+        """
+        params = {"ids": contract_id, "start": start}
+        data = await self._transport.get(ep.futures_closes_range(), params=params, headers=_FUTURES_HEADERS)
+        return data.get("results", [])
+
+    async def get_user_settings(self) -> dict:
+        """Fetch futures user settings."""
+        return await self._transport.get(ep.futures_user_settings(), headers=_FUTURES_HEADERS)
+
+    async def get_pnl_cost_basis(self, account_id: str, contract_id: str | None = None) -> dict:
+        """Fetch futures P&L and cost basis.
+
+        Args:
+            account_id: Futures account UUID.
+            contract_id: Optional contract ID filter.
+        """
+        params = {}
+        if contract_id:
+            params["contractId"] = contract_id
+        return await self._transport.get(
+            ep.futures_pnl_cost_basis(account_id), params=params, headers=_FUTURES_HEADERS
+        )
+
+    async def get_aggregated_positions(self, account_id: str) -> list[dict]:
+        """Fetch aggregated futures positions.
+
+        Args:
+            account_id: Futures account UUID.
+        """
+        data = await self._transport.get(
+            ep.futures_aggregated_positions(account_id), headers=_FUTURES_HEADERS
+        )
+        return data.get("results", [data]) if "results" in data else [data]

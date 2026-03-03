@@ -12,7 +12,7 @@ class CryptoPair(BaseModel):
     """A tradable cryptocurrency pair (e.g. BTC-USD)."""
 
     id: str
-    code: str
+    code: str | None = None
     symbol: str
     name: str
     tradability: str | None = None

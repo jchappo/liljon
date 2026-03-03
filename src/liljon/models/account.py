@@ -32,16 +32,26 @@ class PortfolioProfile(BaseModel):
 
     url: str | None = None
     account_url: str | None = None
+    account: str | None = None
     equity: Decimal | None = None
     extended_hours_equity: Decimal | None = None
     market_value: Decimal | None = None
     extended_hours_market_value: Decimal | None = None
+    extended_hours_portfolio_equity: Decimal | None = None
     last_core_equity: Decimal | None = None
     last_core_market_value: Decimal | None = None
+    last_core_portfolio_equity: Decimal | None = None
+    equity_previous_close: Decimal | None = None
+    portfolio_equity_previous_close: Decimal | None = None
+    adjusted_equity_previous_close: Decimal | None = None
+    adjusted_portfolio_equity_previous_close: Decimal | None = None
     withdrawable_amount: Decimal | None = None
+    unwithdrawable_deposits: Decimal | None = None
+    unwithdrawable_grants: Decimal | None = None
     excess_margin: Decimal | None = None
     excess_maintenance: Decimal | None = None
     excess_margin_with_uncleared_deposits: Decimal | None = None
+    display_currency: str | None = None
     start_date: str | None = None
 
 
@@ -119,3 +129,60 @@ class Dividend(BaseModel):
     record_date: str | None = None
     paid_at: datetime | None = None
     withholding: Decimal | None = None
+
+
+class UserProfile(BaseModel):
+    """Current user profile."""
+
+    url: str | None = None
+    id: str | None = None
+    username: str | None = None
+    email: str | None = None
+    email_verified: bool | None = None
+    first_name: str | None = None
+    last_name: str | None = None
+    profile_name: str | None = None
+    created_at: datetime | None = None
+    origin: dict | None = None
+
+
+class Subscription(BaseModel):
+    """Active subscription (Gold, etc.)."""
+
+    id: str | None = None
+    plan_id: str | None = None
+    plan: dict | None = None
+    status: str | None = None
+    created_at: datetime | None = None
+    expires_at: datetime | None = None
+
+
+class LivePortfolio(BaseModel):
+    """Live portfolio data with real-time values from bonfire."""
+
+    deposit_adjusted_market_value: Decimal | None = None
+    equity_market_value: Decimal | None = None
+    forex_market_value: Decimal | None = None
+    futures_market_value: Decimal | None = None
+    futures_cash: Decimal | None = None
+    event_contracts_market_value: Decimal | None = None
+    option_market_value: Decimal | None = None
+    cash: Decimal | None = None
+    brokerage_cash: Decimal | None = None
+    pending_deposits: Decimal | None = None
+    early_access_amount: Decimal | None = None
+    last_core_portfolio_equity: Decimal | None = None
+    margin_used: Decimal | None = None
+    account_number: str | None = None
+    currency: str | None = None
+
+
+class SweepInterest(BaseModel):
+    """Cash sweep interest rate info."""
+
+    interest_rate: Decimal | None = None
+    non_gold_interest_rate: Decimal | None = None
+    gold_interest_rate: Decimal | None = None
+    gold_boosted_rate: Decimal | None = None
+    gold_boosted_high_rate: Decimal | None = None
+    ram_interest_rate: Decimal | None = None
