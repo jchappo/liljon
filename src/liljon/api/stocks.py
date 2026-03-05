@@ -15,47 +15,17 @@ class StocksAPI:
     def __init__(self, transport: HttpTransport) -> None:
         self._transport = transport
 
-    async def get_quotes(
-        self,
-        symbols: list[str],
-        bounds: str = "regular",
-        include_bbo_source: bool = False,
-        include_inactive: bool = False,
-    ) -> list[StockQuote]:
-        """Fetch real-time quotes for one or more symbols.
-
-        Args:
-            symbols: List of ticker symbols.
-            bounds: Trading session - 'trading', 'regular', 'extended', '24_5'.
-            include_bbo_source: Include best bid/offer source info.
-            include_inactive: Include inactive instruments.
-        """
+    async def get_quotes(self, symbols: list[str]) -> list[StockQuote]:
+        """Fetch real-time quotes for one or more symbols."""
         symbols_str = ",".join(s.upper() for s in symbols)
-        data = await self._transport.get(
-            ep.quotes(symbols_str, bounds, include_bbo_source, include_inactive)
-        )
+        data = await self._transport.get(ep.quotes(symbols_str))
         results = data.get("results", [])
         return [StockQuote(**r) for r in results if r is not None]
 
-    async def get_quotes_by_ids(
-        self,
-        instrument_ids: list[str],
-        bounds: str = "regular",
-        include_bbo_source: bool = False,
-        include_inactive: bool = False,
-    ) -> list[StockQuote]:
-        """Fetch real-time quotes by instrument IDs with extended session params.
-
-        Args:
-            instrument_ids: List of instrument UUIDs.
-            bounds: Trading session - 'trading', 'regular', 'extended', '24_5'.
-            include_bbo_source: Include best bid/offer source info.
-            include_inactive: Include inactive instruments.
-        """
+    async def get_quotes_by_ids(self, instrument_ids: list[str]) -> list[StockQuote]:
+        """Fetch real-time quotes by instrument IDs."""
         ids_str = ",".join(instrument_ids)
-        data = await self._transport.get(
-            ep.quotes_by_ids(ids_str, bounds, include_bbo_source, include_inactive)
-        )
+        data = await self._transport.get(ep.quotes_by_ids(ids_str))
         results = data.get("results", [])
         return [StockQuote(**r) for r in results if r is not None]
 
@@ -79,21 +49,9 @@ class StocksAPI:
                 return inst
         raise InvalidSymbolError(symbol)
 
-    async def get_fundamentals(
-        self,
-        symbol: str,
-        bounds: str = "regular",
-        include_inactive: bool = True,
-    ) -> Fundamentals:
-        """Fetch fundamental data for a symbol.
-
-        Args:
-            symbol: Ticker symbol.
-            bounds: Session bounds - '24_5', 'regular', 'extended', 'trading'.
-            include_inactive: Include inactive instruments.
-        """
-        params = {"bounds": bounds, "include_inactive": str(include_inactive).lower()}
-        data = await self._transport.get(ep.fundamentals(symbol.upper()), params=params)
+    async def get_fundamentals(self, symbol: str) -> Fundamentals:
+        """Fetch fundamental data for a symbol."""
+        data = await self._transport.get(ep.fundamentals(symbol.upper()))
         return Fundamentals(symbol=symbol.upper(), **data)
 
     async def get_historicals(
@@ -128,39 +86,14 @@ class StocksAPI:
         results = await paginate_results(self._transport, url)
         return [NewsArticle(**r) for r in results]
 
-    async def get_latest_price(
-        self,
-        symbols: list[str],
-        bounds: str = "regular",
-        include_bbo_source: bool = False,
-        include_inactive: bool = False,
-    ) -> dict[str, str | None]:
-        """Fetch the latest trade price for symbols. Returns {symbol: price_string}.
+    async def get_latest_price(self, symbols: list[str]) -> dict[str, str | None]:
+        """Fetch the latest trade price for symbols. Returns {symbol: price_string}."""
+        quotes = await self.get_quotes(symbols)
+        return {q.symbol: str(q.last_extended_hours_trade_price) if q.last_extended_hours_trade_price is not None else str(q.last_trade_price) for q in quotes}
 
-        Args:
-            symbols: List of ticker symbols.
-            bounds: Trading session - 'trading', 'regular', 'extended', '24_5'.
-            include_bbo_source: Include best bid/offer source info.
-            include_inactive: Include inactive instruments.
-        """
-        quotes = await self.get_quotes(symbols, bounds, include_bbo_source, include_inactive)
-        return {q.symbol: str(q.last_trade_price) if q.last_trade_price is not None else None for q in quotes}
-
-    async def get_fundamentals_by_id(
-        self,
-        instrument_id: str,
-        bounds: str = "regular",
-        include_inactive: bool = False,
-    ) -> Fundamentals:
-        """Fetch fundamentals by instrument ID with session-aware bounds.
-
-        Args:
-            instrument_id: Instrument UUID.
-            bounds: Session bounds — '24_5', 'regular', 'extended', 'trading'.
-            include_inactive: Include inactive instruments.
-        """
-        params = {"bounds": bounds, "include_inactive": str(include_inactive).lower()}
-        data = await self._transport.get(ep.fundamentals_by_id(instrument_id), params=params)
+    async def get_fundamentals_by_id(self, instrument_id: str) -> Fundamentals:
+        """Fetch fundamentals by instrument ID."""
+        data = await self._transport.get(ep.fundamentals_by_id(instrument_id))
         return Fundamentals(**data)
 
     async def get_fundamentals_history(

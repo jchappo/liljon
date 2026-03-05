@@ -106,34 +106,14 @@ def historical_activities() -> str:
 
 # ── Stocks ──────────────────────────────────────────────────────────────────
 
-def quotes(
-    symbols: str,
-    bounds: str = "trading",
-    include_bbo_source: bool = True,
-    include_inactive: bool = False,
-) -> str:
+def quotes(symbols: str) -> str:
     """Comma-separated symbols → market-data quotes."""
-    return (
-        f"{BASE}/marketdata/quotes/"
-        f"?symbols={symbols}&bounds={bounds}"
-        f"&include_bbo_source={str(include_bbo_source).lower()}"
-        f"&include_inactive={str(include_inactive).lower()}"
-    )
+    return f"{BASE}/marketdata/quotes/?symbols={symbols}"
 
 
-def quotes_by_ids(
-    ids: str,
-    bounds: str = "trading",
-    include_bbo_source: bool = True,
-    include_inactive: bool = False,
-) -> str:
-    """Batch quotes by comma-separated instrument IDs with extended params."""
-    return (
-        f"{BASE}/marketdata/quotes/"
-        f"?ids={ids}&bounds={bounds}"
-        f"&include_bbo_source={str(include_bbo_source).lower()}"
-        f"&include_inactive={str(include_inactive).lower()}"
-    )
+def quotes_by_ids(ids: str) -> str:
+    """Batch quotes by comma-separated instrument IDs."""
+    return f"{BASE}/marketdata/quotes/?ids={ids}"
 
 
 def instruments() -> str:

@@ -323,14 +323,13 @@ def stocks():
 
 @stocks.command()
 @click.argument("symbols", nargs=-1, required=True)
-@click.option("--bounds", default="trading", help="Session: trading, regular, extended, 24_5.")
 @click.pass_context
 @async_command
 @handle_errors
-async def quote(ctx: click.Context, symbols: tuple[str, ...], bounds: str):
+async def quote(ctx: click.Context, symbols: tuple[str, ...]):
     """Real-time stock quotes."""
     async with get_authenticated_client() as client:
-        quotes = await client.stocks.get_quotes(list(symbols), bounds=bounds)
+        quotes = await client.stocks.get_quotes(list(symbols))
         if _use_json(ctx):
             output_json(quotes)
         else:
@@ -348,14 +347,13 @@ async def quote(ctx: click.Context, symbols: tuple[str, ...], bounds: str):
 
 @stocks.command()
 @click.argument("symbol")
-@click.option("--bounds", default="regular", help="Session: regular, extended, trading, 24_5.")
 @click.pass_context
 @async_command
 @handle_errors
-async def fundamentals(ctx: click.Context, symbol: str, bounds: str):
+async def fundamentals(ctx: click.Context, symbol: str):
     """Fundamentals: PE, market cap, sector, etc."""
     async with get_authenticated_client() as client:
-        data = await client.stocks.get_fundamentals(symbol.upper(), bounds=bounds)
+        data = await client.stocks.get_fundamentals(symbol.upper())
         if _use_json(ctx):
             output_json(data)
         else:
@@ -432,14 +430,13 @@ async def news(ctx: click.Context, symbol: str | None, limit: int):
 
 @stocks.command("quote-by-ids")
 @click.argument("instrument_ids", nargs=-1, required=True)
-@click.option("--bounds", default="trading", help="Session: trading, regular, extended, 24_5.")
 @click.pass_context
 @async_command
 @handle_errors
-async def quote_by_ids(ctx: click.Context, instrument_ids: tuple[str, ...], bounds: str):
-    """Quotes by instrument IDs with session bounds."""
+async def quote_by_ids(ctx: click.Context, instrument_ids: tuple[str, ...]):
+    """Quotes by instrument IDs."""
     async with get_authenticated_client() as client:
-        quotes = await client.stocks.get_quotes_by_ids(list(instrument_ids), bounds=bounds)
+        quotes = await client.stocks.get_quotes_by_ids(list(instrument_ids))
         if _use_json(ctx):
             output_json(quotes)
         else:
@@ -452,19 +449,18 @@ async def quote_by_ids(ctx: click.Context, instrument_ids: tuple[str, ...], boun
                 ("trading_halted", "Halted"),
                 ("updated_at", "Updated"),
             ]
-            console.print(model_table(quotes, cols, title=f"Quotes by ID (bounds={bounds})"))
+            console.print(model_table(quotes, cols, title="Quotes by ID"))
 
 
 @stocks.command()
 @click.argument("symbols", nargs=-1, required=True)
-@click.option("--bounds", default="regular", help="Session: regular, extended, trading, 24_5.")
 @click.pass_context
 @async_command
 @handle_errors
-async def price(ctx: click.Context, symbols: tuple[str, ...], bounds: str):
+async def price(ctx: click.Context, symbols: tuple[str, ...]):
     """Quick latest price for symbols."""
     async with get_authenticated_client() as client:
-        prices = await client.stocks.get_latest_price(list(symbols), bounds=bounds)
+        prices = await client.stocks.get_latest_price(list(symbols))
         if _use_json(ctx):
             output_json(prices)
         else:
@@ -478,18 +474,17 @@ async def price(ctx: click.Context, symbols: tuple[str, ...], bounds: str):
 
 @stocks.command("fundamentals-by-id")
 @click.argument("instrument_id")
-@click.option("--bounds", default="regular", help="Session: regular, extended, trading, 24_5.")
 @click.pass_context
 @async_command
 @handle_errors
-async def fundamentals_by_id(ctx: click.Context, instrument_id: str, bounds: str):
-    """Fundamentals by instrument ID (session-aware high/low)."""
+async def fundamentals_by_id(ctx: click.Context, instrument_id: str):
+    """Fundamentals by instrument ID."""
     async with get_authenticated_client() as client:
-        data = await client.stocks.get_fundamentals_by_id(instrument_id, bounds=bounds)
+        data = await client.stocks.get_fundamentals_by_id(instrument_id)
         if _use_json(ctx):
             output_json(data)
         else:
-            console.print(model_panel(data, title=f"Fundamentals — {instrument_id[:8]}... (bounds={bounds})"))
+            console.print(model_panel(data, title=f"Fundamentals — {instrument_id[:8]}..."))
 
 
 @stocks.command("fundamentals-history")
