@@ -15,18 +15,33 @@ class StocksAPI:
     def __init__(self, transport: HttpTransport) -> None:
         self._transport = transport
 
-    async def get_quotes(self, symbols: list[str]) -> list[StockQuote]:
-        """Fetch real-time quotes for one or more symbols."""
+    async def get_quotes(
+        self,
+        symbols: list[str],
+        bounds: str = "regular",
+        include_bbo_source: bool = False,
+        include_inactive: bool = False,
+    ) -> list[StockQuote]:
+        """Fetch real-time quotes for one or more symbols.
+
+        Args:
+            symbols: List of ticker symbols.
+            bounds: Trading session - 'trading', 'regular', 'extended', '24_5'.
+            include_bbo_source: Include best bid/offer source info.
+            include_inactive: Include inactive instruments.
+        """
         symbols_str = ",".join(s.upper() for s in symbols)
-        data = await self._transport.get(ep.quotes(symbols_str))
+        data = await self._transport.get(
+            ep.quotes(symbols_str, bounds, include_bbo_source, include_inactive)
+        )
         results = data.get("results", [])
         return [StockQuote(**r) for r in results if r is not None]
 
     async def get_quotes_by_ids(
         self,
         instrument_ids: list[str],
-        bounds: str = "trading",
-        include_bbo_source: bool = True,
+        bounds: str = "regular",
+        include_bbo_source: bool = False,
         include_inactive: bool = False,
     ) -> list[StockQuote]:
         """Fetch real-time quotes by instrument IDs with extended session params.
@@ -44,11 +59,6 @@ class StocksAPI:
         results = data.get("results", [])
         return [StockQuote(**r) for r in results if r is not None]
 
-    async def get_quote(self, symbol: str) -> StockQuote:
-        """Fetch a single stock quote."""
-        data = await self._transport.get(ep.quote(symbol.upper()))
-        return StockQuote(**data)
-
     async def get_instruments(self, symbol: str) -> list[StockInstrument]:
         """Search for instruments matching a symbol."""
         data = await self._transport.get(ep.instruments(), params={"query": symbol.upper()})
@@ -56,12 +66,8 @@ class StocksAPI:
         return [StockInstrument(**r) for r in results if r is not None]
 
     async def get_instrument_by_id(self, instrument_id: str) -> StockInstrument:
-        """Fetch a specific instrument by its ID."""
-        data = await self._transport.get(ep.instrument(instrument_id))
-        return StockInstrument(**data)
-
-    async def get_instrument_by_url(self, url: str) -> StockInstrument:
-        """Fetch an instrument from its full URL."""
+        """Fetch a specific instrument by its ID or full URL."""
+        url = instrument_id if instrument_id.startswith("http") else ep.instrument(instrument_id)
         data = await self._transport.get(url)
         return StockInstrument(**data)
 
@@ -73,9 +79,21 @@ class StocksAPI:
                 return inst
         raise InvalidSymbolError(symbol)
 
-    async def get_fundamentals(self, symbol: str) -> Fundamentals:
-        """Fetch fundamental data for a symbol."""
-        data = await self._transport.get(ep.fundamentals(symbol.upper()))
+    async def get_fundamentals(
+        self,
+        symbol: str,
+        bounds: str = "regular",
+        include_inactive: bool = True,
+    ) -> Fundamentals:
+        """Fetch fundamental data for a symbol.
+
+        Args:
+            symbol: Ticker symbol.
+            bounds: Session bounds - '24_5', 'regular', 'extended', 'trading'.
+            include_inactive: Include inactive instruments.
+        """
+        params = {"bounds": bounds, "include_inactive": str(include_inactive).lower()}
+        data = await self._transport.get(ep.fundamentals(symbol.upper()), params=params)
         return Fundamentals(symbol=symbol.upper(), **data)
 
     async def get_historicals(
@@ -91,32 +109,40 @@ class StocksAPI:
             symbol: Ticker symbol.
             interval: Bar interval - '5minute', '10minute', 'hour', 'day', 'week'.
             span: Time span - 'day', 'week', 'month', '3month', 'year', '5year'.
-            bounds: Trading session - 'regular', 'extended', 'trading'.
+            bounds: Trading session - 'regular', 'extended', 'trading', '24_5'.
         """
         data = await self._transport.get(ep.historicals(symbol.upper(), interval, span, bounds))
         results = data.get("historicals", [])
         return [HistoricalBar(**r) for r in results if r is not None]
 
     async def get_news(self, symbol: str | None = None) -> list[NewsArticle]:
-        """Fetch news articles for a symbol, or market-wide news if no symbol given."""
+        """Fetch news articles for a symbol."""
         url = ep.news(symbol.upper()) if symbol else ep.news()
         results = await paginate_results(self._transport, url)
         return [NewsArticle(**r) for r in results]
 
-    async def get_latest_price(self, symbols: list[str]) -> dict[str, str | None]:
-        """Fetch the latest trade price for symbols. Returns {symbol: price_string}."""
-        quotes = await self.get_quotes(symbols)
-        return {q.symbol: str(q.last_trade_price) if q.last_trade_price is not None else None for q in quotes}
+    async def get_latest_price(
+        self,
+        symbols: list[str],
+        bounds: str = "regular",
+        include_bbo_source: bool = False,
+        include_inactive: bool = False,
+    ) -> dict[str, str | None]:
+        """Fetch the latest trade price for symbols. Returns {symbol: price_string}.
 
-    async def get_quote_by_id(self, instrument_id: str) -> StockQuote:
-        """Fetch a single stock quote by instrument ID."""
-        data = await self._transport.get(ep.quote_by_id(instrument_id))
-        return StockQuote(**data)
+        Args:
+            symbols: List of ticker symbols.
+            bounds: Trading session - 'trading', 'regular', 'extended', '24_5'.
+            include_bbo_source: Include best bid/offer source info.
+            include_inactive: Include inactive instruments.
+        """
+        quotes = await self.get_quotes(symbols, bounds, include_bbo_source, include_inactive)
+        return {q.symbol: str(q.last_trade_price) if q.last_trade_price is not None else None for q in quotes}
 
     async def get_fundamentals_by_id(
         self,
         instrument_id: str,
-        bounds: str = "24_5",
+        bounds: str = "regular",
         include_inactive: bool = True,
     ) -> Fundamentals:
         """Fetch fundamentals by instrument ID with session-aware bounds.
@@ -152,7 +178,7 @@ class StocksAPI:
         instrument_ids: list[str],
         interval: str = "5minute",
         span: str = "day",
-        bounds: str = "24_5",
+        bounds: str = "regular",
     ) -> list[dict]:
         """Fetch batch historicals by instrument IDs.
 

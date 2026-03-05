@@ -323,13 +323,14 @@ def stocks():
 
 @stocks.command()
 @click.argument("symbols", nargs=-1, required=True)
+@click.option("--bounds", default="trading", help="Session: trading, regular, extended, 24_5.")
 @click.pass_context
 @async_command
 @handle_errors
-async def quote(ctx: click.Context, symbols: tuple[str, ...]):
+async def quote(ctx: click.Context, symbols: tuple[str, ...], bounds: str):
     """Real-time stock quotes."""
     async with get_authenticated_client() as client:
-        quotes = await client.stocks.get_quotes(list(symbols))
+        quotes = await client.stocks.get_quotes(list(symbols), bounds=bounds)
         if _use_json(ctx):
             output_json(quotes)
         else:
@@ -1786,7 +1787,7 @@ async def markets_category(ctx: click.Context, tag: str):
             instruments = []
             for url in instrument_urls:
                 try:
-                    inst = await client.stocks.get_instrument_by_url(url)
+                    inst = await client.stocks.get_instrument_by_id(url)
                     instruments.append(inst)
                 except Exception:
                     continue

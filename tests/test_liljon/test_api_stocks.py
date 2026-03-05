@@ -21,7 +21,7 @@ def stocks_api(transport):
 
 async def test_get_quotes(stocks_api, httpx_mock):
     httpx_mock.add_response(
-        url="https://api.robinhood.com/marketdata/quotes/?symbols=AAPL,MSFT",
+        url="https://api.robinhood.com/marketdata/quotes/?symbols=AAPL,MSFT&bounds=regular&include_bbo_source=false&include_inactive=false",
         json={
             "results": [
                 {"symbol": "AAPL", "last_trade_price": "150.25", "ask_price": "150.30", "bid_price": "150.20", "trading_halted": False},
@@ -33,15 +33,6 @@ async def test_get_quotes(stocks_api, httpx_mock):
     assert len(quotes) == 2
     assert quotes[0].symbol == "AAPL"
     assert float(quotes[0].last_trade_price) == 150.25
-
-
-async def test_get_quote(stocks_api, httpx_mock):
-    httpx_mock.add_response(
-        url="https://api.robinhood.com/marketdata/quotes/AAPL/",
-        json={"symbol": "AAPL", "last_trade_price": "150.25", "trading_halted": False},
-    )
-    quote = await stocks_api.get_quote("AAPL")
-    assert quote.symbol == "AAPL"
 
 
 async def test_get_instrument_by_symbol(stocks_api, httpx_mock):
@@ -67,9 +58,45 @@ async def test_get_instrument_by_symbol_not_found(stocks_api, httpx_mock):
         await stocks_api.get_instrument_by_symbol("FAKESYM")
 
 
+async def test_get_instruments(stocks_api, httpx_mock):
+    httpx_mock.add_response(
+        url=re.compile(r"https://api\.robinhood\.com/instruments/\?query=AAPL"),
+        json={
+            "results": [
+                {"id": "abc", "url": "https://api.robinhood.com/instruments/abc/", "symbol": "AAPL", "name": "Apple Inc.", "tradeable": True},
+                {"id": "def", "url": "https://api.robinhood.com/instruments/def/", "symbol": "AAPLX", "name": "Apple Fund", "tradeable": True},
+            ]
+        },
+    )
+    instruments = await stocks_api.get_instruments("AAPL")
+    assert len(instruments) == 2
+    assert instruments[0].symbol == "AAPL"
+    assert instruments[1].symbol == "AAPLX"
+
+
+async def test_get_instrument_by_id(stocks_api, httpx_mock):
+    httpx_mock.add_response(
+        url="https://api.robinhood.com/instruments/abc123/",
+        json={"id": "abc123", "url": "https://api.robinhood.com/instruments/abc123/", "symbol": "AAPL", "name": "Apple Inc.", "tradeable": True},
+    )
+    inst = await stocks_api.get_instrument_by_id("abc123")
+    assert inst.id == "abc123"
+    assert inst.symbol == "AAPL"
+
+
+async def test_get_instrument_by_id_with_url(stocks_api, httpx_mock):
+    httpx_mock.add_response(
+        url="https://api.robinhood.com/instruments/abc123/",
+        json={"id": "abc123", "url": "https://api.robinhood.com/instruments/abc123/", "symbol": "AAPL", "name": "Apple Inc.", "tradeable": True},
+    )
+    inst = await stocks_api.get_instrument_by_id("https://api.robinhood.com/instruments/abc123/")
+    assert inst.id == "abc123"
+    assert inst.symbol == "AAPL"
+
+
 async def test_get_fundamentals(stocks_api, httpx_mock):
     httpx_mock.add_response(
-        url="https://api.robinhood.com/fundamentals/AAPL/",
+        url="https://api.robinhood.com/fundamentals/AAPL/?bounds=regular&include_inactive=true",
         json={"market_cap": "3000000000000", "pe_ratio": "28.5"},
     )
     f = await stocks_api.get_fundamentals("AAPL")
@@ -125,7 +152,7 @@ async def test_get_news_market_wide(stocks_api, httpx_mock):
 
 async def test_get_latest_price(stocks_api, httpx_mock):
     httpx_mock.add_response(
-        url="https://api.robinhood.com/marketdata/quotes/?symbols=AAPL",
+        url="https://api.robinhood.com/marketdata/quotes/?symbols=AAPL&bounds=regular&include_bbo_source=false&include_inactive=false",
         json={
             "results": [
                 {"symbol": "AAPL", "last_trade_price": "150.25", "trading_halted": False},

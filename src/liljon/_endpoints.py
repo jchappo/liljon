@@ -106,9 +106,19 @@ def historical_activities() -> str:
 
 # ── Stocks ──────────────────────────────────────────────────────────────────
 
-def quotes(symbols: str) -> str:
+def quotes(
+    symbols: str,
+    bounds: str = "trading",
+    include_bbo_source: bool = True,
+    include_inactive: bool = False,
+) -> str:
     """Comma-separated symbols → market-data quotes."""
-    return f"{BASE}/marketdata/quotes/?symbols={symbols}"
+    return (
+        f"{BASE}/marketdata/quotes/"
+        f"?symbols={symbols}&bounds={bounds}"
+        f"&include_bbo_source={str(include_bbo_source).lower()}"
+        f"&include_inactive={str(include_inactive).lower()}"
+    )
 
 
 def quotes_by_ids(
@@ -126,20 +136,12 @@ def quotes_by_ids(
     )
 
 
-def quote(symbol: str) -> str:
-    return f"{BASE}/marketdata/quotes/{symbol}/"
-
-
 def instruments() -> str:
     return f"{BASE}/instruments/"
 
 
 def instrument(instrument_id: str) -> str:
     return f"{BASE}/instruments/{instrument_id}/"
-
-
-def instrument_by_url(url: str) -> str:
-    return url
 
 
 def fundamentals(symbol: str) -> str:
@@ -154,10 +156,6 @@ def news(symbol: str | None = None) -> str:
     if symbol:
         return f"{BASE}/midlands/news/{symbol}/"
     return f"{BASE}/midlands/news/"
-
-
-def latest_price(symbols: str) -> str:
-    return f"{BASE}/marketdata/quotes/?symbols={symbols}"
 
 
 def fundamentals_by_id(instrument_id: str) -> str:
@@ -183,11 +181,6 @@ def equity_summary(instrument_id: str) -> str:
 def historicals_by_ids() -> str:
     """Batch historicals by instrument IDs."""
     return f"{BASE}/marketdata/historicals/"
-
-
-def quote_by_id(instrument_id: str) -> str:
-    """Single quote by instrument ID."""
-    return f"{BASE}/marketdata/quotes/{instrument_id}/"
 
 
 def shorting(instrument_id: str) -> str:
