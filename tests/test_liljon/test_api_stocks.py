@@ -106,17 +106,23 @@ async def test_get_fundamentals(stocks_api, httpx_mock):
 
 async def test_get_historicals(stocks_api, httpx_mock):
     httpx_mock.add_response(
-        url="https://api.robinhood.com/marketdata/historicals/AAPL/?interval=day&span=year&bounds=regular",
+        url="https://api.robinhood.com/marketdata/historicals/?symbols=AAPL&interval=day&span=year&bounds=regular",
         json={
-            "historicals": [
-                {"open_price": "100.00", "close_price": "105.00", "high_price": "106.00", "low_price": "99.50", "volume": 1000000, "interpolated": False},
-                {"open_price": "105.00", "close_price": "103.00", "high_price": "107.00", "low_price": "102.00", "volume": 900000, "interpolated": False},
+            "results": [
+                {
+                    "symbol": "AAPL",
+                    "historicals": [
+                        {"open_price": "100.00", "close_price": "105.00", "high_price": "106.00", "low_price": "99.50", "volume": 1000000, "interpolated": False},
+                        {"open_price": "105.00", "close_price": "103.00", "high_price": "107.00", "low_price": "102.00", "volume": 900000, "interpolated": False},
+                    ],
+                }
             ]
         },
     )
-    bars = await stocks_api.get_historicals("AAPL", interval="day", span="year")
-    assert len(bars) == 2
-    assert float(bars[0].close_price) == 105.00
+    result = await stocks_api.get_historicals(["AAPL"], interval="day", span="year")
+    assert "AAPL" in result
+    assert len(result["AAPL"]) == 2
+    assert float(result["AAPL"][0].close_price) == 105.00
 
 
 async def test_get_news(stocks_api, httpx_mock):

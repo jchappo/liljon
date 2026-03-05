@@ -348,13 +348,14 @@ async def quote(ctx: click.Context, symbols: tuple[str, ...], bounds: str):
 
 @stocks.command()
 @click.argument("symbol")
+@click.option("--bounds", default="regular", help="Session: regular, extended, trading, 24_5.")
 @click.pass_context
 @async_command
 @handle_errors
-async def fundamentals(ctx: click.Context, symbol: str):
+async def fundamentals(ctx: click.Context, symbol: str, bounds: str):
     """Fundamentals: PE, market cap, sector, etc."""
     async with get_authenticated_client() as client:
-        data = await client.stocks.get_fundamentals(symbol.upper())
+        data = await client.stocks.get_fundamentals(symbol.upper(), bounds=bounds)
         if _use_json(ctx):
             output_json(data)
         else:
@@ -377,21 +378,20 @@ async def instrument(ctx: click.Context, symbol: str):
 
 
 @stocks.command()
-@click.argument("symbol")
+@click.argument("symbols", nargs=-1, required=True)
 @click.option("--interval", default="day", help="Interval: 5minute, 10minute, hour, day, week.")
 @click.option("--span", default="year", help="Span: day, week, month, 3month, year, 5year.")
+@click.option("--bounds", default="regular", help="Session: regular, extended, trading, 24_5.")
 @click.option("--last", type=int, default=None, help="Show only last N bars.")
 @click.pass_context
 @async_command
 @handle_errors
-async def historicals(ctx: click.Context, symbol: str, interval: str, span: str, last: int | None):
+async def historicals(ctx: click.Context, symbols: tuple[str, ...], interval: str, span: str, bounds: str, last: int | None):
     """OHLCV historical bars."""
     async with get_authenticated_client() as client:
-        bars = await client.stocks.get_historicals(symbol.upper(), interval=interval, span=span)
-        if last:
-            bars = bars[-last:]
+        result = await client.stocks.get_historicals(list(symbols), interval=interval, span=span, bounds=bounds)
         if _use_json(ctx):
-            output_json(bars)
+            output_json(result)
         else:
             cols = [
                 ("begins_at", "Date"),
@@ -401,7 +401,10 @@ async def historicals(ctx: click.Context, symbol: str, interval: str, span: str,
                 ("close_price", "Close"),
                 ("volume", "Volume"),
             ]
-            console.print(model_table(bars, cols, title=f"Historicals — {symbol.upper()} ({interval}/{span})"))
+            for sym, bars in result.items():
+                if last:
+                    bars = bars[-last:]
+                console.print(model_table(bars, cols, title=f"Historicals — {sym} ({interval}/{span})"))
 
 
 @stocks.command()
@@ -454,13 +457,14 @@ async def quote_by_ids(ctx: click.Context, instrument_ids: tuple[str, ...], boun
 
 @stocks.command()
 @click.argument("symbols", nargs=-1, required=True)
+@click.option("--bounds", default="regular", help="Session: regular, extended, trading, 24_5.")
 @click.pass_context
 @async_command
 @handle_errors
-async def price(ctx: click.Context, symbols: tuple[str, ...]):
+async def price(ctx: click.Context, symbols: tuple[str, ...], bounds: str):
     """Quick latest price for symbols."""
     async with get_authenticated_client() as client:
-        prices = await client.stocks.get_latest_price(list(symbols))
+        prices = await client.stocks.get_latest_price(list(symbols), bounds=bounds)
         if _use_json(ctx):
             output_json(prices)
         else:
@@ -474,7 +478,7 @@ async def price(ctx: click.Context, symbols: tuple[str, ...]):
 
 @stocks.command("fundamentals-by-id")
 @click.argument("instrument_id")
-@click.option("--bounds", default="24_5", help="Session: regular, extended, trading, 24_5.")
+@click.option("--bounds", default="regular", help="Session: regular, extended, trading, 24_5.")
 @click.pass_context
 @async_command
 @handle_errors

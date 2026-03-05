@@ -31,8 +31,8 @@ def test_quotes():
 
 
 def test_historicals():
-    url = ep.historicals("AAPL", "day", "year", "regular")
-    assert "AAPL" in url
+    url = ep.historicals("AAPL,MSFT", "day", "year", "regular")
+    assert "symbols=AAPL,MSFT" in url
     assert "interval=day" in url
     assert "span=year" in url
     assert "bounds=regular" in url

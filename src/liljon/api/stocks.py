@@ -98,22 +98,29 @@ class StocksAPI:
 
     async def get_historicals(
         self,
-        symbol: str,
+        symbols: list[str],
         interval: str = "day",
         span: str = "year",
         bounds: str = "regular",
-    ) -> list[HistoricalBar]:
-        """Fetch historical OHLCV bars for a symbol.
+    ) -> dict[str, list[HistoricalBar]]:
+        """Fetch historical OHLCV bars for one or more symbols.
 
         Args:
-            symbol: Ticker symbol.
+            symbols: List of ticker symbols.
             interval: Bar interval - '5minute', '10minute', 'hour', 'day', 'week'.
             span: Time span - 'day', 'week', 'month', '3month', 'year', '5year'.
             bounds: Trading session - 'regular', 'extended', 'trading', '24_5'.
         """
-        data = await self._transport.get(ep.historicals(symbol.upper(), interval, span, bounds))
-        results = data.get("historicals", [])
-        return [HistoricalBar(**r) for r in results if r is not None]
+        symbols_str = ",".join(s.upper() for s in symbols)
+        data = await self._transport.get(ep.historicals(symbols_str, interval, span, bounds))
+        out: dict[str, list[HistoricalBar]] = {}
+        for result in data.get("results", []):
+            if result is None:
+                continue
+            sym = result.get("symbol", "")
+            bars = result.get("historicals", [])
+            out[sym] = [HistoricalBar(**b) for b in bars if b is not None]
+        return out
 
     async def get_news(self, symbol: str | None = None) -> list[NewsArticle]:
         """Fetch news articles for a symbol."""
@@ -143,7 +150,7 @@ class StocksAPI:
         self,
         instrument_id: str,
         bounds: str = "regular",
-        include_inactive: bool = True,
+        include_inactive: bool = False,
     ) -> Fundamentals:
         """Fetch fundamentals by instrument ID with session-aware bounds.
 

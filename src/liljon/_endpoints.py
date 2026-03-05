@@ -148,8 +148,9 @@ def fundamentals(symbol: str) -> str:
     return f"{BASE}/fundamentals/{symbol}/"
 
 
-def historicals(symbol: str, interval: str, span: str, bounds: str = "regular") -> str:
-    return f"{BASE}/marketdata/historicals/{symbol}/?interval={interval}&span={span}&bounds={bounds}"
+def historicals(symbols: str, interval: str, span: str, bounds: str = "regular") -> str:
+    """Comma-separated symbols → historical OHLCV bars."""
+    return f"{BASE}/marketdata/historicals/?symbols={symbols}&interval={interval}&span={span}&bounds={bounds}"
 
 
 def news(symbol: str | None = None) -> str:
