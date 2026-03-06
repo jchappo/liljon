@@ -21,7 +21,7 @@ src/liljon/
 │   ├── _device_token.py # Device token generation
 │   └── models.py      # TokenData, ChallengeInfo, LoginResult
 ├── api/               # API namespace modules
-│   ├── stocks.py      # Quotes, fundamentals, historicals, news, batch lookups
+│   ├── stocks.py      # Quotes, fundamentals, multi-symbol historicals, news, batch lookups
 │   ├── options.py     # Chains, instruments, market data, positions, strategies, P&L
 │   ├── crypto.py      # Pairs, quotes, holdings, orders
 │   ├── futures.py     # Contracts, quotes, accounts, orders, products, closes
@@ -30,7 +30,7 @@ src/liljon/
 │   ├── orders.py      # Place, cancel, list stock orders, combo orders, fee calculator
 │   ├── markets.py     # Market hours, movers, categories
 │   ├── screeners.py   # Stock screeners and scans
-│   ├── discovery.py   # Analyst ratings, hedge funds, insiders, short interest, earnings, ETPs
+│   ├── discovery.py   # Analyst ratings, hedge funds, insiders, short interest, earnings, ETPs, news feeds
 │   └── alerts.py      # Price and indicator alerts (GET/POST/PATCH)
 └── models/            # Pydantic response models for EVERYTHING
     ├── stocks.py      # StockQuote, Fundamentals, HistoricalBar, NewsArticle, etc.
@@ -56,8 +56,9 @@ src/liljon/
 - **Pagination** — Automatic URL-based and cursor-based pagination. GETS ALL THE DATA!! YEAH!!
 - **Full CLI** — Interactive testing tool with Rich tables and panels. PRETTY!! WHAT?!
 - **Exception Hierarchy** — All errors inherit from `RobinhoodError` for easy catching. OOOK!
-- **Discovery Engine** — Analyst ratings, hedge fund activity, insider trading, short interest, earnings, similar instruments. DEEP RESEARCH!!
+- **Discovery Engine** — Analyst ratings, hedge fund activity, insider trading, short interest, earnings, similar instruments, and news feeds. DEEP RESEARCH!!
 - **Price Alerts** — Create and manage price and indicator alerts via API. NEVER MISS A MOVE!! YEAH!!
+- **Multi-Symbol Batching** — Fetch historicals for multiple symbols in a single request. EFFICIENT!! OOOK!
 
 ## INSTALLATION - LET'S GET IT!! OOOK!
 
@@ -110,11 +111,8 @@ async with RobinhoodClient() as client:
 # Get quotes - WHAT ARE THESE PRICES?!
 quotes = await client.stocks.get_quotes(["AAPL", "TSLA"])
 
-# Get a single quote
-quote = await client.stocks.get_quote("AAPL")
-
-# Get quotes by instrument IDs with session bounds
-quotes = await client.stocks.get_quotes_by_ids(["id1", "id2"], bounds="24_5")
+# Get quotes by instrument IDs
+quotes = await client.stocks.get_quotes_by_ids(["id1", "id2"])
 
 # Get latest prices - QUICK LOOK!! YEAH!!
 prices = await client.stocks.get_latest_price(["AAPL", "TSLA"])
@@ -128,8 +126,9 @@ fundamentals = await client.stocks.get_fundamentals_by_id(instrument_id, bounds=
 # Get fundamentals history over time
 history = await client.stocks.get_fundamentals_history(["id1", "id2"], start_date="2025-01-01")
 
-# Get historicals - WHERE WE BEEN?! YEAH!!
-bars = await client.stocks.get_historicals("AAPL", interval="day", span="month")
+# Get historicals - batches multiple symbols in one call! YEAH!!
+bars = await client.stocks.get_historicals(["AAPL", "MSFT"], interval="day", span="month", bounds="regular")
+# Returns dict keyed by symbol: {"AAPL": [...], "MSFT": [...]}
 
 # Get batch historicals by instrument IDs
 batch = await client.stocks.get_historicals_by_ids(["id1", "id2"], interval="5minute", span="day")
@@ -142,6 +141,9 @@ news = await client.stocks.get_news()
 
 # Resolve a symbol to its instrument
 instrument = await client.stocks.get_instrument_by_symbol("AAPL")
+
+# Get instrument by ID or URL
+instrument = await client.stocks.get_instrument_by_id(instrument_id)
 ```
 
 ### Options - OOOK! ADVANCED MOVES!!
@@ -380,6 +382,12 @@ bounds = await client.discovery.get_chart_bounds()
 
 # Unified search across stocks, crypto, futures - FIND ANYTHING!! YEAH!!
 results = await client.discovery.search("AAPL")
+
+# General market news feed from dora.robinhood.com - WHAT'S THE BUZZ?! OOOK!
+feed = await client.discovery.get_feed()
+
+# Instrument-specific news feed - WHAT'S THE WORD ON THIS ONE?! YEAH!!
+feed = await client.discovery.get_instrument_feed(instrument_id)
 ```
 
 ### Alerts - NEVER MISS A MOVE!! OOOK!
@@ -441,20 +449,20 @@ liljon stocks quote AAPL MSFT NVDA
 # Quick latest price
 liljon stocks price AAPL TSLA
 
-# Get quotes by instrument IDs (with session bounds)
-liljon stocks quote-by-ids <id1> <id2> --bounds 24_5
+# Get quotes by instrument IDs
+liljon stocks quote-by-ids <id1> <id2>
 
 # Get fundamentals - DO YOUR HOMEWORK!! OOOK!
 liljon stocks fundamentals AAPL
 
-# Get fundamentals by instrument ID (session-aware)
-liljon stocks fundamentals-by-id <instrument_id> --bounds 24_5
+# Get fundamentals by instrument ID
+liljon stocks fundamentals-by-id <instrument_id>
 
 # Get 52-week fundamentals history
 liljon stocks fundamentals-history <instrument_id1> <instrument_id2> --start-date 2025-01-01
 
-# Get historical bars - YEAH!!
-liljon stocks historicals AAPL --interval day --span month --last 30
+# Get historical bars (supports multiple symbols) - YEAH!!
+liljon stocks historicals AAPL MSFT --interval day --span month --bounds regular --last 30
 
 # Get instrument metadata
 liljon stocks instrument AAPL
@@ -748,6 +756,12 @@ liljon discovery nbbo <instrument_id>
 
 # Chart time bounds
 liljon discovery chart-bounds
+
+# General market news feed - WHAT'S THE BUZZ?! OOOK!
+liljon discovery feed --limit 10
+
+# News feed for a specific instrument - WHAT'S THE WORD?! YEAH!!
+liljon discovery instrument-feed <instrument_id> --limit 10
 ```
 
 ### Alerts Commands - SET IT AND FORGET IT!! OOOK!
