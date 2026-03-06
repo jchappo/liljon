@@ -26,6 +26,9 @@ env/
 htmlcov/
 .mypy_cache/
 
+# Secrets
+.env
+
 # OS
 .DS_Store
 Thumbs.db

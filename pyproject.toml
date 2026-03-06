@@ -57,6 +57,9 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/liljon"]
 
+[tool.hatch.build.targets.sdist]
+exclude = [".env"]
+
 [dependency-groups]
 dev = [
     "pytest>=8",
