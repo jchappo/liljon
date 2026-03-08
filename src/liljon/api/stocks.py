@@ -5,7 +5,7 @@ from __future__ import annotations
 from liljon import _endpoints as ep
 from liljon._http import HttpTransport
 from liljon._pagination import paginate_results
-from liljon.exceptions import InvalidSymbolError
+from liljon.exceptions import APIError, InvalidSymbolError
 from liljon.models.stocks import Fundamentals, HistoricalBar, NewsArticle, StockInstrument, StockQuote
 
 
@@ -70,7 +70,12 @@ class StocksAPI:
             bounds: Trading session - 'regular', 'extended', 'trading', '24_5'.
         """
         symbols_str = ",".join(s.upper() for s in symbols)
-        data = await self._transport.get(ep.historicals(symbols_str, interval, span, bounds))
+        try:
+            data = await self._transport.get(ep.historicals(symbols_str, interval, span, bounds))
+        except APIError as e:
+            if e.status_code == 404 and "missing_instruments" in e.detail:
+                raise InvalidSymbolError(symbols_str) from e
+            raise
         out: dict[str, list[HistoricalBar]] = {}
         for result in data.get("results", []):
             if result is None:
