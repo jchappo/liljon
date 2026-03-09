@@ -38,7 +38,15 @@ from liljon.models.discovery import (
 from liljon.models.futures import FuturesAccount, FuturesContract, FuturesOrder, FuturesQuote
 from liljon.models.indexes import IndexClose, IndexFundamentals, IndexInstrument, IndexQuote
 from liljon.models.options import OptionChain, OptionInstrument, OptionMarketData, OptionPosition
-from liljon.models.orders import OrderResult
+from liljon.models.orders import (
+    Execution,
+    Notional,
+    OrderFeeEstimate,
+    OrderFeeResult,
+    OrderResult,
+    OrderSession,
+    OrderSessionInfo,
+)
 from liljon.models.screeners import (
     Indicator,
     IndicatorCategory,
@@ -95,7 +103,13 @@ __all__ = [
     "OptionInstrument",
     "OptionMarketData",
     "OptionPosition",
+    "Execution",
+    "Notional",
+    "OrderFeeEstimate",
+    "OrderFeeResult",
     "OrderResult",
+    "OrderSession",
+    "OrderSessionInfo",
     "PaginatedResponse",
     "PhoenixAccount",
     "PortfolioProfile",

@@ -450,6 +450,10 @@ def order(order_id: str) -> str:
     return f"{BASE}/orders/{order_id}/"
 
 
+def stock_order(order_id: str) -> str:
+    return f"{BASE}/orders/{order_id}/"
+
+
 def cancel_order(order_id: str) -> str:
     return f"{BASE}/orders/{order_id}/cancel/"
 
@@ -466,6 +470,26 @@ def combo_orders() -> str:
 def orders_fees() -> str:
     """Order fee calculation (POST)."""
     return f"{BASE}/orders/fees/"
+
+
+def orders_calculate_expiration() -> str:
+    """GTC order expiration date calculation."""
+    return f"{BASE}/orders/calculate_expiration/"
+
+
+def orders_session() -> str:
+    """Trading session hours and behaviors."""
+    return f"{BASE}/orders/session/"
+
+
+def bonfire_order_checks() -> str:
+    """Pre-order validation checks (bonfire)."""
+    return f"{BONFIRE_BASE}/equity_trading/orders/checks/"
+
+
+def bonfire_order_type_selector(side: str) -> str:
+    """Order type UI configuration for a given side (buy, sell, sell_short)."""
+    return f"{BONFIRE_BASE}/equity_trading/order_type_selector/{side}/"
 
 
 # ── Screeners ─────────────────────────────────────────────────────────────

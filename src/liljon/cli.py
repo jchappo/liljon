@@ -790,28 +790,39 @@ async def buying_power(ctx: click.Context, instrument_id: str):
 
 @cli.group()
 def orders():
-    """Stock orders: list, get, buy, sell, cancel."""
+    """Stock orders: list, get, buy, sell, cancel, fees, sessions."""
 
 
 @orders.command("list")
+@click.option("--account", default=None, help="Filter by account number.")
+@click.option("--instrument", default=None, help="Filter by instrument URL.")
+@click.option("--open", "is_open", is_flag=True, default=False, help="Show only open (non-closed) orders.")
 @click.pass_context
 @async_command
 @handle_errors
-async def orders_list(ctx: click.Context):
+async def orders_list(ctx: click.Context, account: str | None, instrument: str | None, is_open: bool):
     """Recent stock orders."""
     async with get_authenticated_client() as client:
-        data = await client.orders.get_stock_orders()
+        account_numbers = [account] if account else None
+        data = await client.orders.get_stock_orders(
+            account_numbers=account_numbers,
+            instrument=instrument,
+            is_closed=False if is_open else None,
+        )
         if _use_json(ctx):
             output_json(data)
         else:
             cols = [
                 ("id", "Order ID"),
-                ("symbol", "Symbol"),
+                ("instrument_id", "Instrument"),
                 ("side", "Side"),
                 ("type", "Type"),
+                ("trigger", "Trigger"),
                 ("quantity", "Qty"),
                 ("price", "Price"),
+                ("stop_price", "Stop"),
                 ("state", "State"),
+                ("market_hours", "Hours"),
                 ("created_at", "Created"),
             ]
             console.print(model_table(data, cols, title="Stock Orders"))
@@ -839,13 +850,16 @@ async def orders_get(ctx: click.Context, order_id: str):
 @click.option("--price", type=float, default=None, help="Limit price (required for limit/stoplimit).")
 @click.option("--stop-price", type=float, default=None, help="Stop price (required for stoploss/stoplimit).")
 @click.option("--tif", default="gfd", help="Time in force: gfd, gtc, ioc, opg.")
+@click.option("--extended-hours", is_flag=True, default=False, help="Allow execution during extended hours.")
+@click.option("--position-effect", default="open", type=click.Choice(["open", "close"]), help="Position effect.")
 @click.option("--confirm", is_flag=True, required=True, help="Required flag to confirm the order.")
 @click.pass_context
 @async_command
 @handle_errors
 async def buy(
     ctx: click.Context, symbol: str, qty: float, order_type: str,
-    price: float | None, stop_price: float | None, tif: str, confirm: bool,
+    price: float | None, stop_price: float | None, tif: str,
+    extended_hours: bool, position_effect: str, confirm: bool,
 ):
     """Place a buy order."""
     async with get_authenticated_client() as client:
@@ -857,6 +871,8 @@ async def buy(
             time_in_force=tif,
             price=price,
             stop_price=stop_price,
+            extended_hours=extended_hours,
+            position_effect=position_effect,
         )
         if _use_json(ctx):
             output_json(result)
@@ -872,13 +888,16 @@ async def buy(
 @click.option("--price", type=float, default=None, help="Limit price (required for limit/stoplimit).")
 @click.option("--stop-price", type=float, default=None, help="Stop price (required for stoploss/stoplimit).")
 @click.option("--tif", default="gfd", help="Time in force: gfd, gtc, ioc, opg.")
+@click.option("--extended-hours", is_flag=True, default=False, help="Allow execution during extended hours.")
+@click.option("--position-effect", default="open", type=click.Choice(["open", "close"]), help="Position effect.")
 @click.option("--confirm", is_flag=True, required=True, help="Required flag to confirm the order.")
 @click.pass_context
 @async_command
 @handle_errors
 async def sell(
     ctx: click.Context, symbol: str, qty: float, order_type: str,
-    price: float | None, stop_price: float | None, tif: str, confirm: bool,
+    price: float | None, stop_price: float | None, tif: str,
+    extended_hours: bool, position_effect: str, confirm: bool,
 ):
     """Place a sell order."""
     async with get_authenticated_client() as client:
@@ -890,6 +909,8 @@ async def sell(
             time_in_force=tif,
             price=price,
             stop_price=stop_price,
+            extended_hours=extended_hours,
+            position_effect=position_effect,
         )
         if _use_json(ctx):
             output_json(result)
@@ -900,29 +921,63 @@ async def sell(
 
 @orders.command()
 @click.argument("order_id")
+@click.option("--account", default=None, help="Account number.")
 @click.option("--confirm", is_flag=True, required=True, help="Required flag to confirm cancellation.")
 @click.pass_context
 @async_command
 @handle_errors
-async def cancel(ctx: click.Context, order_id: str, confirm: bool):
+async def cancel(ctx: click.Context, order_id: str, account: str | None, confirm: bool):
     """Cancel a pending stock order."""
     async with get_authenticated_client() as client:
-        result = await client.orders.cancel_stock_order(order_id)
+        result = await client.orders.cancel_stock_order(order_id, account_number=account)
         if _use_json(ctx):
             output_json(result)
         else:
             console.print(f"[green]Order {order_id} cancelled.[/green]")
 
 
-@orders.command("combo")
-@click.option("--states", default=None, help="Filter by states (e.g. pending, filled).")
+@orders.command("options")
+@click.option("--account", default=None, help="Filter by account number.")
+@click.option("--states", default=None, help="Comma-separated states (e.g. queued,confirmed,filled).")
 @click.pass_context
 @async_command
 @handle_errors
-async def orders_combo(ctx: click.Context, states: str | None):
+async def orders_options(ctx: click.Context, account: str | None, states: str | None):
+    """List options orders."""
+    async with get_authenticated_client() as client:
+        account_numbers = [account] if account else None
+        data = await client.orders.get_options_orders(
+            account_numbers=account_numbers, states=states,
+        )
+        if _use_json(ctx):
+            output_json(data)
+        else:
+            if not data:
+                console.print("[dim]No options orders found.[/dim]")
+                return
+            cols = [
+                ("id", "ID"),
+                ("state", "State"),
+                ("type", "Type"),
+                ("premium", "Premium"),
+                ("created_at", "Created"),
+            ]
+            console.print(dict_table(data, cols, title="Options Orders"))
+
+
+@orders.command("combo")
+@click.option("--account", default=None, help="Filter by account number.")
+@click.option("--states", default=None, help="Comma-separated states (e.g. queued,confirmed,filled).")
+@click.pass_context
+@async_command
+@handle_errors
+async def orders_combo(ctx: click.Context, account: str | None, states: str | None):
     """Combo/multi-leg orders."""
     async with get_authenticated_client() as client:
-        data = await client.orders.get_combo_orders(states=states)
+        account_numbers = [account] if account else None
+        data = await client.orders.get_combo_orders(
+            account_numbers=account_numbers, states=states,
+        )
         if _use_json(ctx):
             output_json(data)
         else:
@@ -960,7 +1015,54 @@ async def orders_fees(ctx: click.Context, instrument_id: str, quantity: str, pri
         if _use_json(ctx):
             output_json(data)
         else:
-            console.print(dict_panel(data, title="Estimated Fees"))
+            console.print(model_panel(data, title="Estimated Fees"))
+
+
+@orders.command("expiration")
+@click.pass_context
+@async_command
+@handle_errors
+async def orders_expiration(ctx: click.Context):
+    """Show the GTC expiration date for orders placed now."""
+    async with get_authenticated_client() as client:
+        expire_dt = await client.orders.calculate_expiration()
+        if _use_json(ctx):
+            output_json({"gtc_expire_datetime": expire_dt})
+        else:
+            console.print(f"GTC orders placed now expire: [cyan]{expire_dt}[/cyan]")
+
+
+@orders.command("sessions")
+@click.argument("date")
+@click.option("--type", "session_type", default="ORDER_SESSION_TYPE_SELL_SHORT", help="Session type filter.")
+@click.pass_context
+@async_command
+@handle_errors
+async def orders_sessions(ctx: click.Context, date: str, session_type: str):
+    """Trading session hours and behaviors for a date.
+
+    DATE is in YYYY-MM-DD format.
+    """
+    async with get_authenticated_client() as client:
+        sessions = await client.orders.get_order_sessions(date, session_type=session_type)
+        if _use_json(ctx):
+            output_json(sessions)
+        else:
+            if not sessions:
+                console.print("[dim]No sessions found.[/dim]")
+                return
+            for s in sessions:
+                table = Table(title=f"Session: {s.session}")
+                table.add_column("Start")
+                table.add_column("End")
+                table.add_column("Behavior")
+                for b in s.behaviors:
+                    table.add_row(
+                        _format_value(b.start_time),
+                        _format_value(b.end_time),
+                        str(b.behavior),
+                    )
+                console.print(table)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
