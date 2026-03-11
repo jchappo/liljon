@@ -3,7 +3,8 @@
 from datetime import date, datetime, timezone
 from decimal import Decimal
 
-from liljon.models.account import AccountProfile, Position, PortfolioProfile, Watchlist
+from liljon.auth.models import ChallengeInfo, LoginResult, TokenData
+from liljon.models.account import AccountProfile, PortfolioProfile, Position, Watchlist
 from liljon.models.common import PaginatedResponse
 from liljon.models.crypto import CryptoPair, CryptoQuote
 from liljon.models.futures import FuturesContract, FuturesQuote
@@ -11,7 +12,6 @@ from liljon.models.indexes import IndexInstrument, IndexQuote
 from liljon.models.options import OptionChain, OptionInstrument, OptionMarketData
 from liljon.models.orders import OrderResult
 from liljon.models.stocks import Fundamentals, HistoricalBar, NewsArticle, StockQuote
-from liljon.auth.models import ChallengeInfo, LoginResult, TokenData
 
 
 def test_stock_quote_from_dict():
@@ -97,13 +97,40 @@ def test_crypto_quote():
 
 
 def test_futures_contract():
-    fc = FuturesContract(id="fc1", symbol="/ES", underlying="SPX", active=True)
-    assert fc.symbol == "/ES"
+    fc = FuturesContract(
+        id="fc1",
+        productId="prod1",
+        symbol="/ESH26:XCME",
+        displaySymbol="/ESH26",
+        description="E-mini S&P 500 Futures, Mar-26",
+        multiplier="50",
+        expirationMmy="202603",
+        expiration="2026-03-20",
+        customerLastCloseDate="2026-03-20",
+        tradability="FUTURES_TRADABILITY_TRADABLE",
+        state="FUTURES_STATE_ACTIVE",
+        firstTradeDate="2024-09-20",
+        settlementDate="2026-03-20",
+    )
+    assert fc.symbol == "/ESH26:XCME"
+    assert fc.display_symbol == "/ESH26"
+    assert fc.product_id == "prod1"
 
 
 def test_futures_quote():
-    fq = FuturesQuote(symbol="/ES", last_trade_price=Decimal("4500.00"), volume=100000)
+    fq = FuturesQuote(
+        symbol="/ESH26:XCME",
+        instrument_id="fc1",
+        last_trade_price=Decimal("4500.00"),
+        ask_price=Decimal("4500.25"),
+        bid_price=Decimal("4499.75"),
+        ask_size=10,
+        bid_size=15,
+        last_trade_size=1,
+        state="active",
+    )
     assert fq.last_trade_price == Decimal("4500.00")
+    assert fq.instrument_id == "fc1"
 
 
 def test_index_instrument():

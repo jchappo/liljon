@@ -1,24 +1,15 @@
 """Launch Robinhood in Playwright with DevTools open and full network capture.
 
 Captures complete request/response bodies for all Robinhood API endpoints.
+Futures endpoints get FULL (untruncated) request/response bodies.
 Opens DevTools console automatically for live debugging.
 
 Usage:
     python scripts/rh_full_capture.py
 
-Browse as many pages as possible to capture endpoints:
-    - Home / Portfolio
-    - Individual stock pages (GME, AAPL, TSLA, etc.)
-    - Options chains
-    - Crypto pages
-    - Futures
-    - Screeners
-    - Account settings
-    - Order history
-    - Watchlists
-    - Index pages (S&P 500, VIX, etc.)
-
-Close the browser when done. Results saved to scripts/rh_full_capture_results.json
+Browse futures pages to capture endpoints. Close the browser when done.
+Results saved to scripts/rh_full_capture_results.json
+Futures-specific results saved to scripts/rh_futures_capture.json
 """
 
 import asyncio
@@ -48,9 +39,15 @@ SKIP_PATTERNS = [
     re.compile(r"\.png|\.jpg|\.svg|\.woff|\.css|\.js$"),  # static assets
 ]
 
+# Futures endpoints get full (untruncated) capture
+FUTURES_PATTERNS = [
+    re.compile(r"futures", re.IGNORECASE),
+]
+
 captured: list[dict] = []
+futures_captured: list[dict] = []
 seen_endpoints: set[str] = set()
-stats = {"total": 0, "unique": 0, "errors": 0, "with_body": 0}
+stats = {"total": 0, "unique": 0, "errors": 0, "with_body": 0, "futures": 0}
 
 
 def should_capture(url: str) -> bool:
@@ -170,18 +167,23 @@ async def main():
                 pass
 
             # Capture response body
+            is_futures = any(p.search(url) for p in FUTURES_PATTERNS)
             try:
                 body = await response.body()
                 if body:
                     stats["with_body"] += 1
                     try:
                         json_body = json.loads(body)
-                        # Truncate very large responses (keep structure, trim arrays)
-                        entry["response_body"] = truncate_json(json_body, max_array=5, max_depth=4)
+                        if is_futures:
+                            # Full untruncated body for futures endpoints
+                            entry["response_body"] = json_body
+                        else:
+                            # Truncate non-futures responses
+                            entry["response_body"] = truncate_json(json_body, max_array=5, max_depth=4)
                         entry["response_body_full_size"] = len(body)
                     except (json.JSONDecodeError, TypeError):
-                        text = body.decode("utf-8", errors="replace")[:2000]
-                        entry["response_body"] = text
+                        text = body.decode("utf-8", errors="replace")
+                        entry["response_body"] = text if is_futures else text[:2000]
             except Exception:
                 pass
 
@@ -197,12 +199,16 @@ async def main():
                 pass
 
             captured.append(entry)
+            if is_futures:
+                futures_captured.append(entry)
+                stats["futures"] += 1
 
             # Pretty print to console
             status = response.status
             star = " *** NEW ***" if is_new else ""
+            futures_tag = " \033[93m[FUTURES]\033[0m" if is_futures else ""
             color_status = f"\033[92m{status}\033[0m" if status < 400 else f"\033[91m{status}\033[0m"
-            print(f"  [{method:4s}] {color_status} {endpoint}{star}")
+            print(f"  [{method:4s}] {color_status} {endpoint}{futures_tag}{star}")
             if entry["params"]:
                 params_str = ", ".join(f"{k}={v}" for k, v in entry["params"].items())
                 print(f"         ? {params_str}")
@@ -229,11 +235,18 @@ async def main():
     print(f"  Total API calls:     {stats['total']}")
     print(f"  Unique endpoints:    {stats['unique']}")
     print(f"  With response body:  {stats['with_body']}")
+    print(f"  Futures requests:    {stats['futures']}")
     print()
 
     if captured:
         output_file.write_text(json.dumps(captured, indent=2, default=str))
         print(f"  Full results saved to: {output_file}")
+
+        # Save futures-specific capture with full bodies
+        if futures_captured:
+            futures_file = Path("scripts/rh_futures_capture.json")
+            futures_file.write_text(json.dumps(futures_captured, indent=2, default=str))
+            print(f"  Futures capture saved to:  {futures_file} ({len(futures_captured)} requests)")
 
         # Also save a deduplicated summary
         summary = generate_summary(captured)
@@ -332,4 +345,8 @@ if __name__ == "__main__":
             summary = generate_summary(captured)
             Path("scripts/rh_full_capture_summary.json").write_text(json.dumps(summary, indent=2, default=str))
             print(f"  Saved {len(captured)} requests to {output}")
+        if futures_captured:
+            futures_file = Path("scripts/rh_futures_capture.json")
+            futures_file.write_text(json.dumps(futures_captured, indent=2, default=str))
+            print(f"  Saved {len(futures_captured)} futures requests to {futures_file}")
         sys.exit(0)

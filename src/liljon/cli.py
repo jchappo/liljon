@@ -852,6 +852,7 @@ async def orders_get(ctx: click.Context, order_id: str):
 @click.option("--tif", default="gfd", help="Time in force: gfd, gtc, ioc, opg.")
 @click.option("--extended-hours", is_flag=True, default=False, help="Allow execution during extended hours.")
 @click.option("--position-effect", default="open", type=click.Choice(["open", "close"]), help="Position effect.")
+@click.option("--account-url", default=None, help="Account URL (auto-resolved if not provided).")
 @click.option("--confirm", is_flag=True, required=True, help="Required flag to confirm the order.")
 @click.pass_context
 @async_command
@@ -859,7 +860,7 @@ async def orders_get(ctx: click.Context, order_id: str):
 async def buy(
     ctx: click.Context, symbol: str, qty: float, order_type: str,
     price: float | None, stop_price: float | None, tif: str,
-    extended_hours: bool, position_effect: str, confirm: bool,
+    extended_hours: bool, position_effect: str, account_url: str | None, confirm: bool,
 ):
     """Place a buy order."""
     async with get_authenticated_client() as client:
@@ -873,6 +874,7 @@ async def buy(
             stop_price=stop_price,
             extended_hours=extended_hours,
             position_effect=position_effect,
+            account_url=account_url,
         )
         if _use_json(ctx):
             output_json(result)
@@ -890,6 +892,7 @@ async def buy(
 @click.option("--tif", default="gfd", help="Time in force: gfd, gtc, ioc, opg.")
 @click.option("--extended-hours", is_flag=True, default=False, help="Allow execution during extended hours.")
 @click.option("--position-effect", default="open", type=click.Choice(["open", "close"]), help="Position effect.")
+@click.option("--account-url", default=None, help="Account URL (auto-resolved if not provided).")
 @click.option("--confirm", is_flag=True, required=True, help="Required flag to confirm the order.")
 @click.pass_context
 @async_command
@@ -897,7 +900,7 @@ async def buy(
 async def sell(
     ctx: click.Context, symbol: str, qty: float, order_type: str,
     price: float | None, stop_price: float | None, tif: str,
-    extended_hours: bool, position_effect: str, confirm: bool,
+    extended_hours: bool, position_effect: str, account_url: str | None, confirm: bool,
 ):
     """Place a sell order."""
     async with get_authenticated_client() as client:
@@ -911,6 +914,7 @@ async def sell(
             stop_price=stop_price,
             extended_hours=extended_hours,
             position_effect=position_effect,
+            account_url=account_url,
         )
         if _use_json(ctx):
             output_json(result)
@@ -1437,7 +1441,7 @@ async def options_breakevens(ctx: click.Context, strategy_code: str, average_cos
 
 @cli.group()
 def futures():
-    """Futures contracts, quotes, account, orders, P&L."""
+    """Futures contracts, products, quotes, historicals, sessions, orders, P&L."""
 
 
 @futures.command("contracts")
@@ -1454,30 +1458,224 @@ async def futures_contracts(ctx: click.Context, product_ids: tuple[str, ...]):
         else:
             cols = [
                 ("id", "ID"),
-                ("symbol", "Symbol"),
-                ("underlying", "Underlying"),
-                ("expiration_date", "Expiration"),
-                ("contract_size", "Size"),
-                ("tick_size", "Tick"),
+                ("display_symbol", "Symbol"),
+                ("description", "Description"),
+                ("expiration", "Expiration"),
+                ("multiplier", "Multiplier"),
+                ("tradability", "Tradability"),
                 ("state", "State"),
-                ("active", "Active"),
             ]
             console.print(model_table(data, cols, title="Futures Contracts"))
 
 
-@futures.command("quote")
-@click.argument("contract_id")
+@futures.command("contract")
+@click.argument("id_or_symbol")
 @click.pass_context
 @async_command
 @handle_errors
-async def futures_quote(ctx: click.Context, contract_id: str):
-    """Quote for a futures contract."""
+async def futures_contract(ctx: click.Context, id_or_symbol: str):
+    """Look up a single futures contract by UUID or symbol (e.g. MNQH26, ESH26)."""
     async with get_authenticated_client() as client:
-        data = await client.futures.get_quote(contract_id)
+        if _is_uuid(id_or_symbol):
+            data = await client.futures.get_contract(id_or_symbol)
+        else:
+            data = await client.futures.get_contract_by_symbol(id_or_symbol)
         if _use_json(ctx):
             output_json(data)
         else:
-            console.print(model_panel(data, title=f"Futures Quote — {data.symbol or contract_id}"))
+            console.print(model_panel(data, title=f"Futures Contract — {data.display_symbol}"))
+
+
+@futures.command("quote")
+@click.argument("contract_ids", nargs=-1, required=True)
+@click.pass_context
+@async_command
+@handle_errors
+async def futures_quote(ctx: click.Context, contract_ids: tuple[str, ...]):
+    """Quotes for one or more futures contracts (by UUID)."""
+    async with get_authenticated_client() as client:
+        if len(contract_ids) == 1:
+            data = await client.futures.get_quote(contract_ids[0])
+            if _use_json(ctx):
+                output_json(data)
+            else:
+                console.print(model_panel(data, title=f"Futures Quote — {data.symbol or contract_ids[0]}"))
+        else:
+            data = await client.futures.get_quotes(list(contract_ids))
+            if _use_json(ctx):
+                output_json(data)
+            else:
+                cols = [
+                    ("symbol", "Symbol"),
+                    ("last_trade_price", "Last"),
+                    ("bid_price", "Bid"),
+                    ("bid_size", "Bid Sz"),
+                    ("ask_price", "Ask"),
+                    ("ask_size", "Ask Sz"),
+                    ("state", "State"),
+                    ("updated_at", "Updated"),
+                ]
+                console.print(model_table(data, cols, title="Futures Quotes"))
+
+
+@futures.command("product")
+@click.argument("product_id")
+@click.pass_context
+@async_command
+@handle_errors
+async def futures_product(ctx: click.Context, product_id: str):
+    """Futures product metadata (contract specs)."""
+    async with get_authenticated_client() as client:
+        data = await client.futures.get_product(product_id)
+        if _use_json(ctx):
+            output_json(data)
+        else:
+            console.print(model_panel(data, title=f"Futures Product — {data.display_symbol}"))
+
+
+@futures.command("historicals")
+@click.argument("contract_id")
+@click.option("--interval", default="5minute", help="Candle interval (5minute, 10minute, hour, day).")
+@click.option("--start", default=None, help="Start datetime (ISO format).")
+@click.option("--last", default=None, type=int, help="Show only the last N bars.")
+@click.pass_context
+@async_command
+@handle_errors
+async def futures_historicals(ctx: click.Context, contract_id: str, interval: str, start: str | None, last: int | None):
+    """Historical OHLCV bars for a futures contract."""
+    async with get_authenticated_client() as client:
+        data = await client.futures.get_historicals(contract_id, interval=interval, start=start)
+        if last and len(data) > last:
+            data = data[-last:]
+        if _use_json(ctx):
+            output_json(data)
+        else:
+            if not data:
+                console.print("[dim]No historical data found.[/dim]")
+                return
+            cols = [
+                ("begins_at", "Time"),
+                ("open_price", "Open"),
+                ("high_price", "High"),
+                ("low_price", "Low"),
+                ("close_price", "Close"),
+                ("volume", "Volume"),
+            ]
+            console.print(model_table(data, cols, title="Futures Historicals"))
+
+
+@futures.command("fundamentals")
+@click.argument("contract_ids", nargs=-1, required=True)
+@click.pass_context
+@async_command
+@handle_errors
+async def futures_fundamentals(ctx: click.Context, contract_ids: tuple[str, ...]):
+    """Session fundamentals (open/high/low/volume) for futures contracts."""
+    async with get_authenticated_client() as client:
+        data = await client.futures.get_fundamentals(list(contract_ids))
+        if _use_json(ctx):
+            output_json(data)
+        else:
+            if not data:
+                console.print("[dim]No fundamentals data found.[/dim]")
+                return
+            for item in data:
+                console.print(model_panel(item, title=f"Futures Fundamentals — {item.instrument_id}"))
+
+
+@futures.command("margin")
+@click.argument("contract_id")
+@click.option("--margin-type", default="MARGIN_TYPE_OVERNIGHT", help="Margin type.")
+@click.option("--account-type", default="ACCOUNT_TYPE_CASH", help="Account type.")
+@click.pass_context
+@async_command
+@handle_errors
+async def futures_margin(ctx: click.Context, contract_id: str, margin_type: str, account_type: str):
+    """Margin requirement for a futures contract."""
+    async with get_authenticated_client() as client:
+        data = await client.futures.get_margin_requirement(contract_id, margin_type, account_type)
+        if _use_json(ctx):
+            output_json(data)
+        else:
+            console.print(model_panel(data, title=f"Margin Requirement — {contract_id}"))
+
+
+@futures.command("sessions")
+@click.argument("contract_id")
+@click.argument("date")
+@click.pass_context
+@async_command
+@handle_errors
+async def futures_sessions(ctx: click.Context, contract_id: str, date: str):
+    """Trading session schedule for a contract on a date (YYYY-MM-DD)."""
+    async with get_authenticated_client() as client:
+        data = await client.futures.get_trading_sessions(contract_id, date)
+        if _use_json(ctx):
+            output_json(data)
+        else:
+            console.print(model_panel(data, title=f"Trading Sessions — {date}"))
+
+
+@futures.command("buying-power")
+@click.argument("account_number")
+@click.pass_context
+@async_command
+@handle_errors
+async def futures_buying_power(ctx: click.Context, account_number: str):
+    """Futures buying power for an account (by account number)."""
+    async with get_authenticated_client() as client:
+        data = await client.futures.get_buying_power(account_number)
+        if _use_json(ctx):
+            output_json(data)
+        else:
+            console.print(model_panel(data, title=f"Futures Buying Power — {account_number}"))
+
+
+@futures.command("closes")
+@click.argument("contract_ids", nargs=-1, required=True)
+@click.pass_context
+@async_command
+@handle_errors
+async def futures_closes(ctx: click.Context, contract_ids: tuple[str, ...]):
+    """Previous close prices for futures contracts."""
+    async with get_authenticated_client() as client:
+        data = await client.futures.get_closes(list(contract_ids))
+        if _use_json(ctx):
+            output_json(data)
+        else:
+            if not data:
+                console.print("[dim]No close data found.[/dim]")
+                return
+            for item in data:
+                console.print(model_panel(item, title=f"Futures Close — {item.symbol or ''}"))
+
+
+@futures.command("closes-range")
+@click.argument("contract_id")
+@click.argument("start")
+@click.pass_context
+@async_command
+@handle_errors
+async def futures_closes_range(ctx: click.Context, contract_id: str, start: str):
+    """Historical close range for a futures contract.
+
+    START should be an ISO datetime (e.g. 2026-01-01T00:00:00Z).
+    """
+    async with get_authenticated_client() as client:
+        data = await client.futures.get_closes_range(contract_id, start)
+        if _use_json(ctx):
+            output_json(data)
+        else:
+            if not data:
+                console.print("[dim]No close range data found.[/dim]")
+                return
+            cols = [
+                ("close_date", "Date"),
+                ("close_price", "Price"),
+                ("close_price_type", "Type"),
+                ("interpolated", "Interpolated"),
+            ]
+            console.print(model_table(data, cols, title="Futures Close Range"))
 
 
 @futures.command("account")
@@ -1539,63 +1737,6 @@ async def futures_pnl(ctx: click.Context):
                 color = "green" if pnl >= 0 else "red"
                 table.add_row(sym, f"[{color}]{_format_value(pnl)}[/{color}]")
             console.print(table)
-
-
-@futures.command("product")
-@click.argument("product_id")
-@click.pass_context
-@async_command
-@handle_errors
-async def futures_product(ctx: click.Context, product_id: str):
-    """Futures product metadata (contract specs)."""
-    async with get_authenticated_client() as client:
-        data = await client.futures.get_product(product_id)
-        if _use_json(ctx):
-            output_json(data)
-        else:
-            console.print(dict_panel(data, title=f"Futures Product — {product_id}"))
-
-
-@futures.command("closes")
-@click.argument("contract_ids", nargs=-1, required=True)
-@click.pass_context
-@async_command
-@handle_errors
-async def futures_closes(ctx: click.Context, contract_ids: tuple[str, ...]):
-    """Previous close prices for futures contracts."""
-    async with get_authenticated_client() as client:
-        data = await client.futures.get_closes(list(contract_ids))
-        if _use_json(ctx):
-            output_json(data)
-        else:
-            if not data:
-                console.print("[dim]No close data found.[/dim]")
-                return
-            for item in data:
-                console.print(dict_panel(item, title="Futures Close"))
-
-
-@futures.command("closes-range")
-@click.argument("contract_id")
-@click.argument("start")
-@click.pass_context
-@async_command
-@handle_errors
-async def futures_closes_range(ctx: click.Context, contract_id: str, start: str):
-    """Historical close range for a futures contract.
-
-    START should be an ISO datetime (e.g. 2026-01-01T00:00:00Z).
-    """
-    async with get_authenticated_client() as client:
-        data = await client.futures.get_closes_range(contract_id, start)
-        if _use_json(ctx):
-            output_json(data)
-        else:
-            if not data:
-                console.print("[dim]No close range data found.[/dim]")
-                return
-            for item in data:
-                console.print(dict_panel(item, title="Futures Close"))
 
 
 @futures.command("settings")

@@ -1,6 +1,5 @@
 """Re-export all Pydantic models for convenient imports."""
 
-from liljon.models.alerts import AlertSetting, AlertSettings
 from liljon.models.account import (
     AccountProfile,
     Dividend,
@@ -14,6 +13,7 @@ from liljon.models.account import (
     Watchlist,
     WatchlistItem,
 )
+from liljon.models.alerts import AlertSetting, AlertSettings
 from liljon.models.common import PaginatedResponse, TimestampMixin
 from liljon.models.crypto import CryptoHistoricalBar, CryptoHolding, CryptoPair, CryptoQuote
 from liljon.models.discovery import (
@@ -35,7 +35,21 @@ from liljon.models.discovery import (
     SimilarInstrument,
     SimilarInstruments,
 )
-from liljon.models.futures import FuturesAccount, FuturesContract, FuturesOrder, FuturesQuote
+from liljon.models.futures import (
+    FuturesAccount,
+    FuturesBuyingPower,
+    FuturesClose,
+    FuturesCloseRange,
+    FuturesContract,
+    FuturesFundamentals,
+    FuturesHistoricalBar,
+    FuturesMarginRequirement,
+    FuturesOrder,
+    FuturesProduct,
+    FuturesQuote,
+    FuturesSessionDetail,
+    FuturesTradingSession,
+)
 from liljon.models.indexes import IndexClose, IndexFundamentals, IndexInstrument, IndexQuote
 from liljon.models.options import OptionChain, OptionInstrument, OptionMarketData, OptionPosition
 from liljon.models.orders import (
@@ -77,9 +91,18 @@ __all__ = [
     "EtpDetails",
     "Fundamentals",
     "FuturesAccount",
+    "FuturesBuyingPower",
+    "FuturesClose",
+    "FuturesCloseRange",
     "FuturesContract",
+    "FuturesFundamentals",
+    "FuturesHistoricalBar",
+    "FuturesMarginRequirement",
     "FuturesOrder",
+    "FuturesProduct",
     "FuturesQuote",
+    "FuturesSessionDetail",
+    "FuturesTradingSession",
     "HedgeFundSummary",
     "HedgeFundTransaction",
     "HedgeFundTransactions",

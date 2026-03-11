@@ -324,11 +324,16 @@ def crypto_orders() -> str:
 # ── Futures ─────────────────────────────────────────────────────────────────
 
 def futures_contracts() -> str:
-    return f"{BASE}/arsenal/v1/futures/contracts/"
+    return f"{BASE}/arsenal/v1/futures/contracts"
 
 
 def futures_contract(contract_id: str) -> str:
-    return f"{BASE}/arsenal/v1/futures/contracts/{contract_id}/"
+    return f"{BASE}/arsenal/v1/futures/contracts/{contract_id}"
+
+
+def futures_contract_by_symbol(symbol: str) -> str:
+    """Lookup a futures contract by its symbol (e.g. SILK26, MNQH26, ESH26)."""
+    return f"{BASE}/arsenal/v1/futures/contracts/symbol/{symbol}"
 
 
 def futures_quotes() -> str:
@@ -364,6 +369,31 @@ def futures_closes() -> str:
 def futures_closes_range() -> str:
     """Historical close range for a futures contract."""
     return f"{BASE}/marketdata/futures/closesrange/v1/"
+
+
+def futures_historicals() -> str:
+    """Historical OHLCV bars for futures contracts."""
+    return f"{BASE}/marketdata/futures/historicals/contracts/v1/"
+
+
+def futures_fundamentals() -> str:
+    """Session fundamentals for futures contracts."""
+    return f"{BASE}/marketdata/futures/fundamentals/v1/"
+
+
+def futures_margin_requirement() -> str:
+    """Margin requirement for a futures contract."""
+    return f"{BASE}/arsenal/v1/futures/margin_requirement"
+
+
+def futures_trading_sessions(contract_id: str, date: str) -> str:
+    """Trading session schedule for a contract on a given date."""
+    return f"{BASE}/arsenal/v1/futures/trading_sessions/{contract_id}/{date}"
+
+
+def futures_buying_power(account_number: str) -> str:
+    """Futures buying power for an account."""
+    return f"{BASE}/futures/{account_number}/futures_buying_power/"
 
 
 def futures_user_settings() -> str:
