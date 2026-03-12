@@ -57,6 +57,8 @@ class AlertsAPI:
 
     # ── Create ───────────────────────────────────────────────────────────
 
+    _PRICE_ALERT_TYPES = {"price_above", "price_below"}
+
     async def create_alert(
         self,
         instrument_id: str,
@@ -69,6 +71,9 @@ class AlertsAPI:
         oversold_level: int | None = None,
     ) -> AlertSettings:
         """Create an alert for an instrument.
+
+        Price alerts are created via POST. Indicator alerts pre-exist as
+        disabled settings on Robinhood, so they are enabled via GET+PATCH.
 
         Args:
             instrument_id: Instrument UUID.
@@ -89,20 +94,23 @@ class AlertsAPI:
             overbought_level: RSI overbought threshold 0–100 (default 70).
             oversold_level: RSI oversold threshold 0–100 (default 30).
         """
+        if setting_type not in self._PRICE_ALERT_TYPES:
+            return await self._enable_indicator_alert(
+                instrument_id,
+                setting_type,
+                enabled=enabled,
+                interval=interval,
+                period=period,
+                overbought_level=overbought_level,
+                oversold_level=oversold_level,
+            )
+
         setting: dict[str, Any] = {
             "enabled": enabled,
             "setting_type": setting_type,
         }
         if price is not None:
             setting["price"] = price
-        if interval is not None:
-            setting["interval"] = interval
-        if period is not None:
-            setting["period"] = period
-        if overbought_level is not None:
-            setting["overbought_level"] = overbought_level
-        if oversold_level is not None:
-            setting["oversold_level"] = oversold_level
 
         params = {"allow_multiple": "true", "sort_by": "created_at"}
         data = await self._transport.post(
@@ -111,6 +119,63 @@ class AlertsAPI:
             params=params,
         )
         return AlertSettings(**data)
+
+    async def _enable_indicator_alert(
+        self,
+        instrument_id: str,
+        setting_type: str,
+        enabled: bool = True,
+        interval: str | None = None,
+        period: int | None = None,
+        overbought_level: int | None = None,
+        oversold_level: int | None = None,
+    ) -> AlertSettings:
+        """Enable a pre-existing indicator alert via GET+PATCH.
+
+        Robinhood pre-creates indicator alert settings per instrument in a
+        disabled state. This fetches the existing alert matching setting_type
+        and PATCHes it to enable with the desired parameters. Falls back to
+        POST if no matching alert is found (forward compatibility).
+        """
+        existing = await self.get_alerts(instrument_id)
+        match = next(
+            (s for s in existing.settings if s.setting_type == setting_type),
+            None,
+        )
+
+        if match is None or match.id is None:
+            # No pre-existing alert found — fall back to POST
+            setting: dict[str, Any] = {
+                "enabled": enabled,
+                "setting_type": setting_type,
+            }
+            if interval is not None:
+                setting["interval"] = interval
+            if period is not None:
+                setting["period"] = period
+            if overbought_level is not None:
+                setting["overbought_level"] = overbought_level
+            if oversold_level is not None:
+                setting["oversold_level"] = oversold_level
+
+            params = {"allow_multiple": "true", "sort_by": "created_at"}
+            data = await self._transport.post(
+                ep.notification_settings(instrument_id),
+                json={"settings": [setting]},
+                params=params,
+            )
+            return AlertSettings(**data)
+
+        return await self.update_alert(
+            instrument_id,
+            match.id,
+            setting_type,
+            enabled=enabled,
+            interval=interval,
+            period=period,
+            overbought_level=overbought_level,
+            oversold_level=oversold_level,
+        )
 
     async def create_alerts(
         self, instrument_id: str, settings: list[dict[str, Any]]
