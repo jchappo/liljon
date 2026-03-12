@@ -17,8 +17,8 @@ class AlertSetting(BaseModel):
             'price_above_sma', 'price_below_sma',
             'price_above_ema', 'price_below_ema',
             'vwap_above', 'vwap_below',
-            'macd_cross_above', 'macd_cross_below',
-            'bollinger_above', 'bollinger_below'.
+            'macd_above_signal', 'macd_below_signal',
+            'price_above_boll_upper', 'price_below_boll_lower'.
 
     interval values (indicator alerts):
         '5m', '10m', '1h', '1d', '1w'.
@@ -31,6 +31,13 @@ class AlertSetting(BaseModel):
     value: Decimal | None = None
     interval: str | None = None
     period: int | None = None
+    # MACD-specific fields
+    fast_period: int | None = None
+    slow_period: int | None = None
+    signal_period: int | None = None
+    # Bollinger-specific fields
+    std_dev: Decimal | None = None
+    ma_type: str | None = None
     title: str | None = None
     subtitle: str | None = None
     editor_title: str | None = None

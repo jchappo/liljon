@@ -2740,7 +2740,12 @@ async def alerts_list(ctx: click.Context, instrument_id: str):
 @click.option("--price", type=str, default=None, help="Target price (for price alerts).")
 @click.option("--value", type=str, default=None, help="Threshold value (for RSI/VWAP alerts).")
 @click.option("--interval", type=str, default=None, help="Interval: 5m, 10m, 1h, 1d, 1w.")
-@click.option("--period", type=int, default=None, help="Look-back periods (e.g. 14 for RSI).")
+@click.option("--period", type=int, default=None, help="Look-back periods (e.g. 14 for RSI, 20 for Bollinger).")
+@click.option("--fast-period", type=int, default=None, help="MACD fast EMA period (default 12).")
+@click.option("--slow-period", type=int, default=None, help="MACD slow EMA period (default 26).")
+@click.option("--signal-period", type=int, default=None, help="MACD signal line period (default 9).")
+@click.option("--std-dev", type=str, default=None, help="Bollinger Band std deviations (default 2.0).")
+@click.option("--ma-type", type=str, default=None, help="Bollinger Band MA type (default sma).")
 @click.pass_context
 @async_command
 @handle_errors
@@ -2752,19 +2757,26 @@ async def alerts_create(
     value: str | None,
     interval: str | None,
     period: int | None,
+    fast_period: int | None,
+    slow_period: int | None,
+    signal_period: int | None,
+    std_dev: str | None,
+    ma_type: str | None,
 ):
     """Create a price or indicator alert.
 
     SETTING_TYPE: price_above, price_below, rsi_above, rsi_below,
     price_above_sma, price_below_sma, price_above_ema, price_below_ema,
-    vwap_above, vwap_below, macd_cross_above, macd_cross_below,
-    bollinger_above, bollinger_below.
+    vwap_above, vwap_below, macd_above_signal, macd_below_signal,
+    price_above_boll_upper, price_below_boll_lower.
     """
     async with get_authenticated_client() as client:
         instrument_id = await _resolve_instrument_id(client, instrument_id)
         data = await client.alerts.create_alert(
             instrument_id, setting_type,
             price=price, value=value, interval=interval, period=period,
+            fast_period=fast_period, slow_period=slow_period,
+            signal_period=signal_period, std_dev=std_dev, ma_type=ma_type,
         )
         if _use_json(ctx):
             output_json(data)

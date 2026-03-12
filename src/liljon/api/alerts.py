@@ -11,22 +11,22 @@ from liljon.models.alerts import AlertSettings
 # ── Valid parameter values ───────────────────────────────────────────────
 #
 # setting_type — Price alerts:
-#   'price_above'          Price rises above target
-#   'price_below'          Price falls below target
+#   'price_above'              Price rises above target
+#   'price_below'              Price falls below target
 #
 # setting_type — Indicator alerts:
-#   'rsi_above'            RSI crosses above threshold
-#   'rsi_below'            RSI crosses below threshold
-#   'price_above_sma'      Price crosses above Simple Moving Average
-#   'price_below_sma'      Price crosses below Simple Moving Average
-#   'price_above_ema'      Price crosses above Exponential Moving Average
-#   'price_below_ema'      Price crosses below Exponential Moving Average
-#   'vwap_above'           Price crosses above Volume-Weighted Average Price
-#   'vwap_below'           Price crosses below Volume-Weighted Average Price
-#   'macd_cross_above'     MACD crosses above signal line
-#   'macd_cross_below'     MACD crosses below signal line
-#   'bollinger_above'      Price crosses above upper Bollinger Band
-#   'bollinger_below'      Price crosses below lower Bollinger Band
+#   'rsi_above'                RSI crosses above threshold
+#   'rsi_below'                RSI crosses below threshold
+#   'price_above_sma'          Price crosses above Simple Moving Average
+#   'price_below_sma'          Price crosses below Simple Moving Average
+#   'price_above_ema'          Price crosses above Exponential Moving Average
+#   'price_below_ema'          Price crosses below Exponential Moving Average
+#   'vwap_above'               Price crosses above Volume-Weighted Average Price
+#   'vwap_below'               Price crosses below Volume-Weighted Average Price
+#   'macd_above_signal'        MACD crosses above signal line
+#   'macd_below_signal'        MACD crosses below signal line
+#   'price_above_boll_upper'   Price crosses above upper Bollinger Band
+#   'price_below_boll_lower'   Price crosses below lower Bollinger Band
 #
 # interval (indicator alerts only):
 #   '5m', '10m', '1h', '1d', '1w'
@@ -36,6 +36,15 @@ from liljon.models.alerts import AlertSettings
 #
 # value (RSI and VWAP alerts):
 #   Threshold value as string (e.g. '70' for RSI overbought, '25' for VWAP).
+#
+# MACD-specific parameters:
+#   fast_period: int   Fast EMA period (default 12).
+#   slow_period: int   Slow EMA period (default 26).
+#   signal_period: int Signal line period (default 9).
+#
+# Bollinger-specific parameters:
+#   std_dev: str       Standard deviations from MA (default "2.0").
+#   ma_type: str       Moving average type (default "sma").
 # ─────────────────────────────────────────────────────────────────────────
 
 _DEFAULT_PARAMS = {"allow_multiple": "true", "sort_by": "created_at"}
@@ -67,6 +76,12 @@ class AlertsAPI:
         value: str | int | None = None,
         interval: str | None = None,
         period: int | None = None,
+        *,
+        fast_period: int | None = None,
+        slow_period: int | None = None,
+        signal_period: int | None = None,
+        std_dev: str | None = None,
+        ma_type: str | None = None,
     ) -> AlertSettings:
         """Create an alert for an instrument.
 
@@ -80,8 +95,8 @@ class AlertsAPI:
                     'price_above_sma', 'price_below_sma',
                     'price_above_ema', 'price_below_ema',
                     'vwap_above', 'vwap_below',
-                    'macd_cross_above', 'macd_cross_below',
-                    'bollinger_above', 'bollinger_below'.
+                    'macd_above_signal', 'macd_below_signal',
+                    'price_above_boll_upper', 'price_below_boll_lower'.
             enabled: Whether the alert is active (default True).
             price: Target price string (required for price_above/price_below).
             value: Threshold value (for RSI: e.g. '70'; for VWAP: target value).
@@ -89,6 +104,11 @@ class AlertsAPI:
                 '5m', '10m', '1h', '1d', '1w'.
             period: Number of intervals for indicator calculation
                 (e.g. 14 for RSI, 20 for SMA/EMA/Bollinger).
+            fast_period: MACD fast EMA period (default 12).
+            slow_period: MACD slow EMA period (default 26).
+            signal_period: MACD signal line period (default 9).
+            std_dev: Bollinger Band standard deviations (default "2.0").
+            ma_type: Bollinger Band moving average type (default "sma").
         """
         setting: dict[str, Any] = {
             "enabled": enabled,
@@ -102,6 +122,16 @@ class AlertsAPI:
             setting["interval"] = interval
         if period is not None:
             setting["period"] = period
+        if fast_period is not None:
+            setting["fast_period"] = fast_period
+        if slow_period is not None:
+            setting["slow_period"] = slow_period
+        if signal_period is not None:
+            setting["signal_period"] = signal_period
+        if std_dev is not None:
+            setting["std_dev"] = std_dev
+        if ma_type is not None:
+            setting["ma_type"] = ma_type
 
         data = await self._transport.post(
             ep.notification_settings(instrument_id),
@@ -345,7 +375,7 @@ class AlertsAPI:
         instrument_id: str,
         direction: str = "above",
         interval: str = "5m",
-        value: str | int | None = None,
+        value: str | int = 25,
     ) -> AlertSettings:
         """Create an alert when price crosses the Volume-Weighted Average Price.
 
@@ -353,7 +383,7 @@ class AlertsAPI:
             instrument_id: Instrument UUID.
             direction: 'above' or 'below'.
             interval: '5m', '10m', '1h', '1d', '1w'.
-            value: Optional VWAP threshold value.
+            value: VWAP threshold value (required, default 25).
         """
         setting_type = f"vwap_{direction}"
         return await self.create_alert(
@@ -367,6 +397,9 @@ class AlertsAPI:
         instrument_id: str,
         direction: str = "above",
         interval: str = "1d",
+        fast_period: int = 12,
+        slow_period: int = 26,
+        signal_period: int = 9,
     ) -> AlertSettings:
         """Create an alert when MACD crosses the signal line.
 
@@ -374,10 +407,18 @@ class AlertsAPI:
             instrument_id: Instrument UUID.
             direction: 'above' (bullish crossover) or 'below' (bearish crossover).
             interval: '5m', '10m', '1h', '1d', '1w'.
+            fast_period: Fast EMA period (default 12).
+            slow_period: Slow EMA period (default 26).
+            signal_period: Signal line period (default 9).
         """
-        setting_type = f"macd_cross_{direction}"
+        setting_type = f"macd_{direction}_signal"
         return await self.create_alert(
-            instrument_id, setting_type, interval=interval
+            instrument_id,
+            setting_type,
+            interval=interval,
+            fast_period=fast_period,
+            slow_period=slow_period,
+            signal_period=signal_period,
         )
 
     # ── Convenience: Bollinger Band alerts ───────────────────────────────
@@ -388,6 +429,8 @@ class AlertsAPI:
         direction: str = "above",
         interval: str = "1d",
         period: int = 20,
+        std_dev: str = "2.0",
+        ma_type: str = "sma",
     ) -> AlertSettings:
         """Create an alert when price crosses a Bollinger Band.
 
@@ -396,8 +439,17 @@ class AlertsAPI:
             direction: 'above' (upper band) or 'below' (lower band).
             interval: '5m', '10m', '1h', '1d', '1w'.
             period: Bollinger Band look-back periods (default 20).
+            std_dev: Standard deviations from MA (default "2.0").
+            ma_type: Moving average type (default "sma").
         """
-        setting_type = f"bollinger_{direction}"
+        band = "upper" if direction == "above" else "lower"
+        setting_type = f"price_{direction}_boll_{band}"
         return await self.create_alert(
-            instrument_id, setting_type, interval=interval, period=period
+            instrument_id,
+            setting_type,
+            interval=interval,
+            period=period,
+            std_dev=std_dev,
+            ma_type=ma_type,
         )
+
