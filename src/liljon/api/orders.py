@@ -103,6 +103,7 @@ class OrdersAPI:
             "trigger": trigger,
             "market_hours": market_hours,
             "position_effect": position_effect,
+            "order_form_version": 7,
             "ref_id": ref_id or str(uuid.uuid4()),
         }
 
