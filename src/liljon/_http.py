@@ -7,6 +7,7 @@ by lazily creating an httpx.AsyncClient per event loop and tracking auth state s
 from __future__ import annotations
 
 import asyncio
+import json as _json_module
 import logging
 from typing import Any
 
@@ -130,10 +131,20 @@ class HttpTransport:
     async def delete(
         self,
         url: str,
+        json: dict[str, Any] | None = None,
+        params: dict[str, Any] | None = None,
         headers: dict[str, str] | None = None,
     ) -> dict[str, Any] | None:
         """Send a DELETE request. Returns parsed JSON or None for 204."""
-        resp = await self._ensure_client().delete(url, headers=headers)
+        kwargs: dict[str, Any] = {}
+        if json is not None:
+            kwargs["content"] = _json_module.dumps(json).encode()
+            kwargs["headers"] = {**(headers or {}), "content-type": "application/json"}
+        elif headers is not None:
+            kwargs["headers"] = headers
+        resp = await self._ensure_client().request(
+            "DELETE", url, params=params, **kwargs
+        )
         self._raise_for_status(resp)
         if resp.status_code == 204:
             return None

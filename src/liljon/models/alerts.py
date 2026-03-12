@@ -16,22 +16,21 @@ class AlertSetting(BaseModel):
         Indicator alerts: 'rsi_above', 'rsi_below',
             'price_above_sma', 'price_below_sma',
             'price_above_ema', 'price_below_ema',
-            'price_above_vwap', 'price_below_vwap',
+            'vwap_above', 'vwap_below',
             'macd_cross_above', 'macd_cross_below',
             'bollinger_above', 'bollinger_below'.
 
     interval values (indicator alerts):
-        '5minute', '10minute', 'hour', 'day', 'week'.
+        '5m', '10m', '1h', '1d', '1w'.
     """
 
     id: str | None = None
     setting_type: str | None = None
     enabled: bool | None = None
     price: Decimal | None = None
+    value: Decimal | None = None
     interval: str | None = None
     period: int | None = None
-    overbought_level: int | None = None
-    oversold_level: int | None = None
     title: str | None = None
     subtitle: str | None = None
     editor_title: str | None = None

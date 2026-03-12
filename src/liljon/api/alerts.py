@@ -15,28 +15,30 @@ from liljon.models.alerts import AlertSettings
 #   'price_below'          Price falls below target
 #
 # setting_type — Indicator alerts:
-#   'rsi_above'            RSI crosses above overbought level
-#   'rsi_below'            RSI crosses below oversold level
+#   'rsi_above'            RSI crosses above threshold
+#   'rsi_below'            RSI crosses below threshold
 #   'price_above_sma'      Price crosses above Simple Moving Average
 #   'price_below_sma'      Price crosses below Simple Moving Average
 #   'price_above_ema'      Price crosses above Exponential Moving Average
 #   'price_below_ema'      Price crosses below Exponential Moving Average
-#   'price_above_vwap'     Price crosses above Volume-Weighted Average Price
-#   'price_below_vwap'     Price crosses below Volume-Weighted Average Price
+#   'vwap_above'           Price crosses above Volume-Weighted Average Price
+#   'vwap_below'           Price crosses below Volume-Weighted Average Price
 #   'macd_cross_above'     MACD crosses above signal line
 #   'macd_cross_below'     MACD crosses below signal line
 #   'bollinger_above'      Price crosses above upper Bollinger Band
 #   'bollinger_below'      Price crosses below lower Bollinger Band
 #
 # interval (indicator alerts only):
-#   '5minute', '10minute', 'hour', 'day', 'week'
+#   '5m', '10m', '1h', '1d', '1w'
 #
 # period (indicator alerts only):
 #   Integer number of intervals for the indicator calculation (e.g. 14 for RSI).
 #
-# overbought_level / oversold_level (RSI alerts only):
-#   Integer 0–100.  Defaults are typically 70 (overbought) and 30 (oversold).
+# value (RSI and VWAP alerts):
+#   Threshold value as string (e.g. '70' for RSI overbought, '25' for VWAP).
 # ─────────────────────────────────────────────────────────────────────────
+
+_DEFAULT_PARAMS = {"allow_multiple": "true", "sort_by": "created_at"}
 
 
 class AlertsAPI:
@@ -49,15 +51,12 @@ class AlertsAPI:
 
     async def get_alerts(self, instrument_id: str) -> AlertSettings:
         """Get all alert settings for an instrument."""
-        params = {"allow_multiple": "true", "sort_by": "created_at"}
         data = await self._transport.get(
-            ep.notification_settings(instrument_id), params=params
+            ep.notification_settings(instrument_id), params=_DEFAULT_PARAMS
         )
         return AlertSettings(**data)
 
     # ── Create ───────────────────────────────────────────────────────────
-
-    _PRICE_ALERT_TYPES = {"price_above", "price_below"}
 
     async def create_alert(
         self,
@@ -65,15 +64,13 @@ class AlertsAPI:
         setting_type: str,
         enabled: bool = True,
         price: str | None = None,
+        value: str | int | None = None,
         interval: str | None = None,
         period: int | None = None,
-        overbought_level: int | None = None,
-        oversold_level: int | None = None,
     ) -> AlertSettings:
         """Create an alert for an instrument.
 
-        Price alerts are created via POST. Indicator alerts pre-exist as
-        disabled settings on Robinhood, so they are enabled via GET+PATCH.
+        All alert types (price and indicator) are created via POST.
 
         Args:
             instrument_id: Instrument UUID.
@@ -82,100 +79,36 @@ class AlertsAPI:
                 Indicator alerts: 'rsi_above', 'rsi_below',
                     'price_above_sma', 'price_below_sma',
                     'price_above_ema', 'price_below_ema',
-                    'price_above_vwap', 'price_below_vwap',
+                    'vwap_above', 'vwap_below',
                     'macd_cross_above', 'macd_cross_below',
                     'bollinger_above', 'bollinger_below'.
             enabled: Whether the alert is active (default True).
             price: Target price string (required for price_above/price_below).
+            value: Threshold value (for RSI: e.g. '70'; for VWAP: target value).
             interval: Candle interval for indicator alerts:
-                '5minute', '10minute', 'hour', 'day', 'week'.
+                '5m', '10m', '1h', '1d', '1w'.
             period: Number of intervals for indicator calculation
                 (e.g. 14 for RSI, 20 for SMA/EMA/Bollinger).
-            overbought_level: RSI overbought threshold 0–100 (default 70).
-            oversold_level: RSI oversold threshold 0–100 (default 30).
         """
-        if setting_type not in self._PRICE_ALERT_TYPES:
-            return await self._enable_indicator_alert(
-                instrument_id,
-                setting_type,
-                enabled=enabled,
-                interval=interval,
-                period=period,
-                overbought_level=overbought_level,
-                oversold_level=oversold_level,
-            )
-
         setting: dict[str, Any] = {
             "enabled": enabled,
             "setting_type": setting_type,
         }
         if price is not None:
             setting["price"] = price
+        if value is not None:
+            setting["value"] = value
+        if interval is not None:
+            setting["interval"] = interval
+        if period is not None:
+            setting["period"] = period
 
-        params = {"allow_multiple": "true", "sort_by": "created_at"}
         data = await self._transport.post(
             ep.notification_settings(instrument_id),
             json={"settings": [setting]},
-            params=params,
+            params=_DEFAULT_PARAMS,
         )
         return AlertSettings(**data)
-
-    async def _enable_indicator_alert(
-        self,
-        instrument_id: str,
-        setting_type: str,
-        enabled: bool = True,
-        interval: str | None = None,
-        period: int | None = None,
-        overbought_level: int | None = None,
-        oversold_level: int | None = None,
-    ) -> AlertSettings:
-        """Enable a pre-existing indicator alert via GET+PATCH.
-
-        Robinhood pre-creates indicator alert settings per instrument in a
-        disabled state. This fetches the existing alert matching setting_type
-        and PATCHes it to enable with the desired parameters. Falls back to
-        POST if no matching alert is found (forward compatibility).
-        """
-        existing = await self.get_alerts(instrument_id)
-        match = next(
-            (s for s in existing.settings if s.setting_type == setting_type),
-            None,
-        )
-
-        if match is None or match.id is None:
-            # No pre-existing alert found — fall back to POST
-            setting: dict[str, Any] = {
-                "enabled": enabled,
-                "setting_type": setting_type,
-            }
-            if interval is not None:
-                setting["interval"] = interval
-            if period is not None:
-                setting["period"] = period
-            if overbought_level is not None:
-                setting["overbought_level"] = overbought_level
-            if oversold_level is not None:
-                setting["oversold_level"] = oversold_level
-
-            params = {"allow_multiple": "true", "sort_by": "created_at"}
-            data = await self._transport.post(
-                ep.notification_settings(instrument_id),
-                json={"settings": [setting]},
-                params=params,
-            )
-            return AlertSettings(**data)
-
-        return await self.update_alert(
-            instrument_id,
-            match.id,
-            setting_type,
-            enabled=enabled,
-            interval=interval,
-            period=period,
-            overbought_level=overbought_level,
-            oversold_level=oversold_level,
-        )
 
     async def create_alerts(
         self, instrument_id: str, settings: list[dict[str, Any]]
@@ -187,11 +120,10 @@ class AlertsAPI:
             settings: List of alert setting dicts. Each dict should contain
                 'setting_type' and relevant fields (see create_alert for values).
         """
-        params = {"allow_multiple": "true", "sort_by": "created_at"}
         data = await self._transport.post(
             ep.notification_settings(instrument_id),
             json={"settings": settings},
-            params=params,
+            params=_DEFAULT_PARAMS,
         )
         return AlertSettings(**data)
 
@@ -204,10 +136,9 @@ class AlertsAPI:
         setting_type: str,
         enabled: bool | None = None,
         price: str | None = None,
+        value: str | int | None = None,
         interval: str | None = None,
         period: int | None = None,
-        overbought_level: int | None = None,
-        oversold_level: int | None = None,
     ) -> AlertSettings:
         """Update an existing alert for an instrument.
 
@@ -215,20 +146,11 @@ class AlertsAPI:
             instrument_id: Instrument UUID.
             alert_id: Alert UUID to update.
             setting_type: Alert type (must match existing alert).
-                Price alerts: 'price_above', 'price_below'.
-                Indicator alerts: 'rsi_above', 'rsi_below',
-                    'price_above_sma', 'price_below_sma',
-                    'price_above_ema', 'price_below_ema',
-                    'price_above_vwap', 'price_below_vwap',
-                    'macd_cross_above', 'macd_cross_below',
-                    'bollinger_above', 'bollinger_below'.
             enabled: Enable or disable the alert.
             price: New target price string.
-            interval: New candle interval:
-                '5minute', '10minute', 'hour', 'day', 'week'.
+            value: New threshold value (for RSI/VWAP).
+            interval: New candle interval: '5m', '10m', '1h', '1d', '1w'.
             period: New indicator period.
-            overbought_level: New RSI overbought threshold 0–100.
-            oversold_level: New RSI oversold threshold 0–100.
         """
         setting: dict[str, Any] = {
             "id": alert_id,
@@ -238,20 +160,17 @@ class AlertsAPI:
             setting["enabled"] = enabled
         if price is not None:
             setting["price"] = price
+        if value is not None:
+            setting["value"] = value
         if interval is not None:
             setting["interval"] = interval
         if period is not None:
             setting["period"] = period
-        if overbought_level is not None:
-            setting["overbought_level"] = overbought_level
-        if oversold_level is not None:
-            setting["oversold_level"] = oversold_level
 
-        params = {"allow_multiple": "true", "sort_by": "created_at"}
         data = await self._transport.patch(
             ep.notification_settings(instrument_id),
             json={"settings": [setting]},
-            params=params,
+            params=_DEFAULT_PARAMS,
         )
         return AlertSettings(**data)
 
@@ -265,11 +184,53 @@ class AlertsAPI:
             settings: List of alert setting dicts. Each must include 'id' and
                 'setting_type', plus any fields to update.
         """
-        params = {"allow_multiple": "true", "sort_by": "created_at"}
         data = await self._transport.patch(
             ep.notification_settings(instrument_id),
             json={"settings": settings},
-            params=params,
+            params=_DEFAULT_PARAMS,
+        )
+        return AlertSettings(**data)
+
+    # ── Delete ───────────────────────────────────────────────────────────
+
+    async def delete_alert(
+        self,
+        instrument_id: str,
+        alert_id: str,
+        setting_type: str,
+    ) -> AlertSettings:
+        """Delete an alert by ID.
+
+        Args:
+            instrument_id: Instrument UUID.
+            alert_id: Alert UUID to delete.
+            setting_type: Alert type (must match the alert being deleted).
+        """
+        setting: dict[str, Any] = {
+            "id": alert_id,
+            "setting_type": setting_type,
+        }
+        data = await self._transport.delete(
+            ep.notification_settings(instrument_id),
+            json={"settings": [setting]},
+            params=_DEFAULT_PARAMS,
+        )
+        return AlertSettings(**data)
+
+    async def delete_alerts(
+        self, instrument_id: str, settings: list[dict[str, Any]]
+    ) -> AlertSettings:
+        """Delete multiple alerts in one request.
+
+        Args:
+            instrument_id: Instrument UUID.
+            settings: List of dicts with 'id' and 'setting_type' for each
+                alert to delete.
+        """
+        data = await self._transport.delete(
+            ep.notification_settings(instrument_id),
+            json={"settings": settings},
+            params=_DEFAULT_PARAMS,
         )
         return AlertSettings(**data)
 
@@ -292,47 +253,47 @@ class AlertsAPI:
     async def create_rsi_above_alert(
         self,
         instrument_id: str,
-        interval: str = "day",
+        interval: str = "1d",
         period: int = 14,
-        overbought_level: int = 70,
+        value: str | int = 70,
     ) -> AlertSettings:
-        """Create an alert that triggers when RSI crosses above overbought level.
+        """Create an alert that triggers when RSI crosses above threshold.
 
         Args:
             instrument_id: Instrument UUID.
-            interval: '5minute', '10minute', 'hour', 'day', 'week'.
+            interval: '5m', '10m', '1h', '1d', '1w'.
             period: RSI look-back periods (default 14).
-            overbought_level: Threshold 0–100 (default 70).
+            value: RSI threshold (default 70).
         """
         return await self.create_alert(
             instrument_id,
             "rsi_above",
             interval=interval,
             period=period,
-            overbought_level=overbought_level,
+            value=value,
         )
 
     async def create_rsi_below_alert(
         self,
         instrument_id: str,
-        interval: str = "day",
+        interval: str = "1d",
         period: int = 14,
-        oversold_level: int = 30,
+        value: str | int = 30,
     ) -> AlertSettings:
-        """Create an alert that triggers when RSI crosses below oversold level.
+        """Create an alert that triggers when RSI crosses below threshold.
 
         Args:
             instrument_id: Instrument UUID.
-            interval: '5minute', '10minute', 'hour', 'day', 'week'.
+            interval: '5m', '10m', '1h', '1d', '1w'.
             period: RSI look-back periods (default 14).
-            oversold_level: Threshold 0–100 (default 30).
+            value: RSI threshold (default 30).
         """
         return await self.create_alert(
             instrument_id,
             "rsi_below",
             interval=interval,
             period=period,
-            oversold_level=oversold_level,
+            value=value,
         )
 
     # ── Convenience: Moving average alerts ───────────────────────────────
@@ -341,7 +302,7 @@ class AlertsAPI:
         self,
         instrument_id: str,
         direction: str = "above",
-        interval: str = "day",
+        interval: str = "1d",
         period: int = 20,
     ) -> AlertSettings:
         """Create an alert when price crosses a Simple Moving Average.
@@ -349,7 +310,7 @@ class AlertsAPI:
         Args:
             instrument_id: Instrument UUID.
             direction: 'above' or 'below'.
-            interval: '5minute', '10minute', 'hour', 'day', 'week'.
+            interval: '5m', '10m', '1h', '1d', '1w'.
             period: SMA look-back periods (default 20).
         """
         setting_type = f"price_{direction}_sma"
@@ -361,7 +322,7 @@ class AlertsAPI:
         self,
         instrument_id: str,
         direction: str = "above",
-        interval: str = "day",
+        interval: str = "1d",
         period: int = 20,
     ) -> AlertSettings:
         """Create an alert when price crosses an Exponential Moving Average.
@@ -369,7 +330,7 @@ class AlertsAPI:
         Args:
             instrument_id: Instrument UUID.
             direction: 'above' or 'below'.
-            interval: '5minute', '10minute', 'hour', 'day', 'week'.
+            interval: '5m', '10m', '1h', '1d', '1w'.
             period: EMA look-back periods (default 20).
         """
         setting_type = f"price_{direction}_ema"
@@ -383,18 +344,20 @@ class AlertsAPI:
         self,
         instrument_id: str,
         direction: str = "above",
-        interval: str = "day",
+        interval: str = "5m",
+        value: str | int | None = None,
     ) -> AlertSettings:
         """Create an alert when price crosses the Volume-Weighted Average Price.
 
         Args:
             instrument_id: Instrument UUID.
             direction: 'above' or 'below'.
-            interval: '5minute', '10minute', 'hour', 'day', 'week'.
+            interval: '5m', '10m', '1h', '1d', '1w'.
+            value: Optional VWAP threshold value.
         """
-        setting_type = f"price_{direction}_vwap"
+        setting_type = f"vwap_{direction}"
         return await self.create_alert(
-            instrument_id, setting_type, interval=interval
+            instrument_id, setting_type, interval=interval, value=value
         )
 
     # ── Convenience: MACD alerts ─────────────────────────────────────────
@@ -403,14 +366,14 @@ class AlertsAPI:
         self,
         instrument_id: str,
         direction: str = "above",
-        interval: str = "day",
+        interval: str = "1d",
     ) -> AlertSettings:
         """Create an alert when MACD crosses the signal line.
 
         Args:
             instrument_id: Instrument UUID.
             direction: 'above' (bullish crossover) or 'below' (bearish crossover).
-            interval: '5minute', '10minute', 'hour', 'day', 'week'.
+            interval: '5m', '10m', '1h', '1d', '1w'.
         """
         setting_type = f"macd_cross_{direction}"
         return await self.create_alert(
@@ -423,7 +386,7 @@ class AlertsAPI:
         self,
         instrument_id: str,
         direction: str = "above",
-        interval: str = "day",
+        interval: str = "1d",
         period: int = 20,
     ) -> AlertSettings:
         """Create an alert when price crosses a Bollinger Band.
@@ -431,7 +394,7 @@ class AlertsAPI:
         Args:
             instrument_id: Instrument UUID.
             direction: 'above' (upper band) or 'below' (lower band).
-            interval: '5minute', '10minute', 'hour', 'day', 'week'.
+            interval: '5m', '10m', '1h', '1d', '1w'.
             period: Bollinger Band look-back periods (default 20).
         """
         setting_type = f"bollinger_{direction}"

@@ -2716,16 +2716,19 @@ async def alerts_list(ctx: click.Context, instrument_id: str):
             table.add_column("ID")
             table.add_column("Type")
             table.add_column("Enabled")
-            table.add_column("Price")
+            table.add_column("Price/Value")
             table.add_column("Interval")
+            table.add_column("Period")
             table.add_column("Updated")
             for s in data.settings:
+                pv = str(s.price) if s.price is not None else (str(s.value) if s.value is not None else "-")
                 table.add_row(
                     (s.id or "-")[:8],
                     s.setting_type or "-",
                     "Yes" if s.enabled else "No",
-                    str(s.price) if s.price is not None else "-",
+                    pv,
                     s.interval or "-",
+                    str(s.period) if s.period is not None else "-",
                     _format_value(s.updated_at),
                 )
             console.print(table)
@@ -2735,7 +2738,9 @@ async def alerts_list(ctx: click.Context, instrument_id: str):
 @click.argument("instrument_id")
 @click.argument("setting_type")
 @click.option("--price", type=str, default=None, help="Target price (for price alerts).")
-@click.option("--interval", type=str, default=None, help="Interval (for indicator alerts, e.g. '5m').")
+@click.option("--value", type=str, default=None, help="Threshold value (for RSI/VWAP alerts).")
+@click.option("--interval", type=str, default=None, help="Interval: 5m, 10m, 1h, 1d, 1w.")
+@click.option("--period", type=int, default=None, help="Look-back periods (e.g. 14 for RSI).")
 @click.pass_context
 @async_command
 @handle_errors
@@ -2744,19 +2749,22 @@ async def alerts_create(
     instrument_id: str,
     setting_type: str,
     price: str | None,
+    value: str | None,
     interval: str | None,
+    period: int | None,
 ):
     """Create a price or indicator alert.
 
     SETTING_TYPE: price_above, price_below, rsi_above, rsi_below,
     price_above_sma, price_below_sma, price_above_ema, price_below_ema,
-    price_above_vwap, price_below_vwap, macd_cross_above, macd_cross_below,
+    vwap_above, vwap_below, macd_cross_above, macd_cross_below,
     bollinger_above, bollinger_below.
     """
     async with get_authenticated_client() as client:
         instrument_id = await _resolve_instrument_id(client, instrument_id)
         data = await client.alerts.create_alert(
-            instrument_id, setting_type, price=price, interval=interval,
+            instrument_id, setting_type,
+            price=price, value=value, interval=interval, period=period,
         )
         if _use_json(ctx):
             output_json(data)
@@ -2807,3 +2815,35 @@ async def alerts_update(
                 if s.id == alert_id:
                     console.print(model_panel(s, title=f"Alert — {alert_id[:8]}..."))
                     break
+
+
+@alerts.command("delete")
+@click.argument("instrument_id")
+@click.argument("alert_id")
+@click.pass_context
+@async_command
+@handle_errors
+async def alerts_delete(
+    ctx: click.Context,
+    instrument_id: str,
+    alert_id: str,
+):
+    """Delete an alert by its ID."""
+    async with get_authenticated_client() as client:
+        instrument_id = await _resolve_instrument_id(client, instrument_id)
+        current = await client.alerts.get_alerts(instrument_id)
+        target = None
+        for s in current.settings:
+            if s.id == alert_id:
+                target = s
+                break
+        if target is None:
+            raise click.ClickException(f"Alert ID '{alert_id}' not found on this instrument.")
+
+        data = await client.alerts.delete_alert(
+            instrument_id, alert_id, target.setting_type,
+        )
+        if _use_json(ctx):
+            output_json(data)
+        else:
+            console.print(f"[green]Alert {alert_id[:8]}... ({target.setting_type}) deleted.[/green]")
