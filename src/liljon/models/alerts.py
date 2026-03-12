@@ -9,7 +9,20 @@ from pydantic import BaseModel
 
 
 class AlertSetting(BaseModel):
-    """A single price or indicator alert setting."""
+    """A single price or indicator alert setting.
+
+    setting_type values:
+        Price alerts: 'price_above', 'price_below'.
+        Indicator alerts: 'rsi_above', 'rsi_below',
+            'price_above_sma', 'price_below_sma',
+            'price_above_ema', 'price_below_ema',
+            'price_above_vwap', 'price_below_vwap',
+            'macd_cross_above', 'macd_cross_below',
+            'bollinger_above', 'bollinger_below'.
+
+    interval values (indicator alerts):
+        '5minute', '10minute', 'hour', 'day', 'week'.
+    """
 
     id: str | None = None
     setting_type: str | None = None

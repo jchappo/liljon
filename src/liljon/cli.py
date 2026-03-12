@@ -2748,16 +2748,16 @@ async def alerts_create(
 ):
     """Create a price or indicator alert.
 
-    SETTING_TYPE is e.g. price_above, price_below, rsi_above, price_above_vwap, etc.
+    SETTING_TYPE: price_above, price_below, rsi_above, rsi_below,
+    price_above_sma, price_below_sma, price_above_ema, price_below_ema,
+    price_above_vwap, price_below_vwap, macd_cross_above, macd_cross_below,
+    bollinger_above, bollinger_below.
     """
     async with get_authenticated_client() as client:
         instrument_id = await _resolve_instrument_id(client, instrument_id)
-        setting: dict = {"enabled": True, "setting_type": setting_type}
-        if price is not None:
-            setting["price"] = price
-        if interval is not None:
-            setting["interval"] = interval
-        data = await client.alerts.create_alert(instrument_id, [setting])
+        data = await client.alerts.create_alert(
+            instrument_id, setting_type, price=price, interval=interval,
+        )
         if _use_json(ctx):
             output_json(data)
         else:
@@ -2795,12 +2795,10 @@ async def alerts_update(
         if target is None:
             raise click.ClickException(f"Alert ID '{alert_id}' not found on this instrument.")
 
-        setting: dict = {"id": alert_id, "setting_type": target.setting_type}
-        if enabled is not None:
-            setting["enabled"] = enabled
-        if price is not None:
-            setting["price"] = price
-        data = await client.alerts.update_alert(instrument_id, [setting])
+        data = await client.alerts.update_alert(
+            instrument_id, alert_id, target.setting_type,
+            enabled=enabled, price=price,
+        )
         if _use_json(ctx):
             output_json(data)
         else:
