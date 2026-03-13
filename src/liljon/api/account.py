@@ -143,12 +143,13 @@ class AccountAPI:
 
     async def _resolve_watchlist_id(self, name: str) -> str:
         """Find a watchlist by display_name and return its id, or raise ValueError."""
-        watchlists = await self.get_watchlists()
-        for wl in watchlists:
-            if wl.display_name == name:
-                if wl.id is None:
+        data = await self._transport.get(ep.all_watchlists(), params={"owner_type": "custom"})
+        for r in data.get("results", []):
+            if r.get("display_name") == name:
+                wl_id = r.get("id")
+                if wl_id is None:
                     raise ValueError(f"Watchlist '{name}' has no id")
-                return wl.id
+                return wl_id
         raise ValueError(f"Watchlist '{name}' not found")
 
     async def get_dividends(self) -> list[Dividend]:

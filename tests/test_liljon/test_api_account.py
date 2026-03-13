@@ -124,7 +124,7 @@ async def test_create_watchlist(account_api, httpx_mock):
 
 
 async def test_add_symbols_to_watchlist(account_api, httpx_mock):
-    # Mock get_watchlists (list endpoint)
+    # Mock watchlist list endpoint (for _resolve_watchlist_id)
     httpx_mock.add_response(
         url=re.compile(r"https://api\.robinhood\.com/midlands/lists/\?owner_type="),
         json={
@@ -132,11 +132,6 @@ async def test_add_symbols_to_watchlist(account_api, httpx_mock):
                 {"id": "wl-abc", "display_name": "Main", "name": "default"},
             ],
         },
-    )
-    # Mock get_watchlists (items endpoint)
-    httpx_mock.add_response(
-        url=re.compile(r"https://api\.robinhood\.com/midlands/lists/items/\?list_id=wl-abc"),
-        json={"results": []},
     )
     # Mock instrument lookup
     httpx_mock.add_response(
@@ -167,7 +162,7 @@ async def test_add_symbols_to_watchlist(account_api, httpx_mock):
 
 
 async def test_remove_symbols_from_watchlist(account_api, httpx_mock):
-    # Mock get_watchlists (list endpoint)
+    # Mock watchlist list endpoint (for _resolve_watchlist_id)
     httpx_mock.add_response(
         url=re.compile(r"https://api\.robinhood\.com/midlands/lists/\?owner_type="),
         json={
@@ -175,11 +170,6 @@ async def test_remove_symbols_from_watchlist(account_api, httpx_mock):
                 {"id": "wl-abc", "display_name": "Main", "name": "default"},
             ],
         },
-    )
-    # Mock get_watchlists (items endpoint)
-    httpx_mock.add_response(
-        url=re.compile(r"https://api\.robinhood\.com/midlands/lists/items/\?list_id=wl-abc"),
-        json={"results": []},
     )
     # Mock instrument lookup
     httpx_mock.add_response(
@@ -216,10 +206,6 @@ async def test_add_symbols_watchlist_not_found(account_api, httpx_mock):
                 {"id": "wl-abc", "display_name": "Other List", "name": "other"},
             ],
         },
-    )
-    httpx_mock.add_response(
-        url=re.compile(r"https://api\.robinhood\.com/midlands/lists/items/\?list_id=wl-abc"),
-        json={"results": []},
     )
     with pytest.raises(ValueError, match="Watchlist 'Main' not found"):
         await account_api.add_symbols_to_watchlist(["AAPL"])
