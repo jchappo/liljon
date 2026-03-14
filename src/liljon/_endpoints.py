@@ -106,14 +106,14 @@ def historical_activities() -> str:
 
 # ── Stocks ──────────────────────────────────────────────────────────────────
 
-def quotes(symbols: str) -> str:
+def quotes(symbols: str, bounds: str = "regular") -> str:
     """Comma-separated symbols → market-data quotes."""
-    return f"{BASE}/marketdata/quotes/?symbols={symbols}"
+    return f"{BASE}/marketdata/quotes/?symbols={symbols}&bounds={bounds}"
 
 
-def quotes_by_ids(ids: str) -> str:
+def quotes_by_ids(ids: str, bounds: str = "regular") -> str:
     """Batch quotes by comma-separated instrument IDs."""
-    return f"{BASE}/marketdata/quotes/?ids={ids}"
+    return f"{BASE}/marketdata/quotes/?ids={ids}&bounds={bounds}"
 
 
 def instruments() -> str:

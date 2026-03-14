@@ -15,17 +15,17 @@ class StocksAPI:
     def __init__(self, transport: HttpTransport) -> None:
         self._transport = transport
 
-    async def get_quotes(self, symbols: list[str]) -> list[StockQuote]:
+    async def get_quotes(self, symbols: list[str], bounds: str = "regular") -> list[StockQuote]:
         """Fetch real-time quotes for one or more symbols."""
         symbols_str = ",".join(s.upper() for s in symbols)
-        data = await self._transport.get(ep.quotes(symbols_str))
+        data = await self._transport.get(ep.quotes(symbols_str, bounds))
         results = data.get("results", [])
         return [StockQuote(**r) for r in results if r is not None]
 
-    async def get_quotes_by_ids(self, instrument_ids: list[str]) -> list[StockQuote]:
+    async def get_quotes_by_ids(self, instrument_ids: list[str], bounds: str = "regular") -> list[StockQuote]:
         """Fetch real-time quotes by instrument IDs."""
         ids_str = ",".join(instrument_ids)
-        data = await self._transport.get(ep.quotes_by_ids(ids_str))
+        data = await self._transport.get(ep.quotes_by_ids(ids_str, bounds))
         results = data.get("results", [])
         return [StockQuote(**r) for r in results if r is not None]
 
@@ -49,9 +49,9 @@ class StocksAPI:
                 return inst
         raise InvalidSymbolError(symbol)
 
-    async def get_fundamentals(self, symbol: str) -> Fundamentals:
+    async def get_fundamentals(self, symbol: str, bounds: str = "regular") -> Fundamentals:
         """Fetch fundamental data for a symbol."""
-        data = await self._transport.get(ep.fundamentals(symbol.upper()))
+        data = await self._transport.get(ep.fundamentals(symbol.upper()), params={"bounds": bounds})
         return Fundamentals(symbol=symbol.upper(), **data)
 
     async def get_historicals(
@@ -91,28 +91,30 @@ class StocksAPI:
         results = await paginate_results(self._transport, url)
         return [NewsArticle(**r) for r in results]
 
-    async def get_latest_price(self, symbols: list[str]) -> dict[str, str | None]:
+    async def get_latest_price(self, symbols: list[str], bounds: str = "regular") -> dict[str, str | None]:
         """Fetch the latest trade price for symbols. Returns {symbol: price_string}."""
-        quotes = await self.get_quotes(symbols)
+        quotes = await self.get_quotes(symbols, bounds=bounds)
         return {q.symbol: str(q.last_extended_hours_trade_price) if q.last_extended_hours_trade_price is not None else str(q.last_trade_price) for q in quotes}
 
-    async def get_fundamentals_by_id(self, instrument_id: str) -> Fundamentals:
+    async def get_fundamentals_by_id(self, instrument_id: str, bounds: str = "regular") -> Fundamentals:
         """Fetch fundamentals by instrument ID."""
-        data = await self._transport.get(ep.fundamentals_by_id(instrument_id))
+        data = await self._transport.get(ep.fundamentals_by_id(instrument_id), params={"bounds": bounds})
         return Fundamentals(**data)
 
     async def get_fundamentals_history(
         self,
         instrument_ids: list[str],
         start_date: str | None = None,
+        bounds: str = "regular",
     ) -> list[dict]:
         """Fetch short fundamentals history for instruments over a date range.
 
         Args:
             instrument_ids: List of instrument UUIDs.
             start_date: Start date (YYYY-MM-DD). Defaults to ~3 months ago.
+            bounds: Trading session - 'regular', 'extended', 'trading', '24_5'.
         """
-        params: dict[str, str] = {"ids": ",".join(instrument_ids)}
+        params: dict[str, str] = {"ids": ",".join(instrument_ids), "bounds": bounds}
         if start_date:
             params["start_date"] = start_date
         data = await self._transport.get(ep.fundamentals_short(), params=params)
