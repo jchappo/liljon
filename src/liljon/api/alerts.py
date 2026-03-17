@@ -375,7 +375,6 @@ class AlertsAPI:
         instrument_id: str,
         direction: str = "above",
         interval: str = "5m",
-        value: str | int = 25,
     ) -> AlertSettings:
         """Create an alert when price crosses the Volume-Weighted Average Price.
 
@@ -383,11 +382,10 @@ class AlertsAPI:
             instrument_id: Instrument UUID.
             direction: 'above' or 'below'.
             interval: '5m', '10m', '1h', '1d', '1w'.
-            value: VWAP threshold value (required, default 25).
         """
-        setting_type = f"vwap_{direction}"
+        setting_type = f"price_{direction}_vwap"
         return await self.create_alert(
-            instrument_id, setting_type, interval=interval, value=value
+            instrument_id, setting_type, interval=interval
         )
 
     # ── Convenience: MACD alerts ─────────────────────────────────────────

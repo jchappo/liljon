@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from liljon import _endpoints as ep
+
+logger = logging.getLogger(__name__)
 from liljon._http import HttpTransport
 from liljon.models.screeners import (
     IndicatorCategory,
@@ -71,7 +74,9 @@ class ScreenersAPI:
             payload["sort_by"] = sort_by
         payload["sort_direction"] = sort_direction
 
+        logger.debug("[SCREENERS] scan payload: %s", payload)
         data = await self._transport.post(ep.screener_scan(), json=payload)
+        logger.debug("[SCREENERS] scan response keys: %s, row_count: %d", list(data.keys()), len(data.get("rows", [])))
 
         raw_cols = data.get("columns", [])
         scan_columns = [ScanColumn(**c) if isinstance(c, dict) else ScanColumn(id=c) for c in raw_cols]
