@@ -2685,6 +2685,16 @@ async def screeners_query(ctx: click.Context, indicator: tuple[str, ...], sort: 
 # ══════════════════════════════════════════════════════════════════════════════
 
 
+def _alert_details(s) -> str:
+    """Format extra indicator details for display."""
+    parts: list[str] = []
+    if s.fast_period is not None:
+        parts.append(f"MACD {s.fast_period}/{s.slow_period}/{s.signal_period}")
+    if s.std_dev is not None:
+        parts.append(f"BB {s.std_dev}σ {s.ma_type or 'sma'}")
+    return ", ".join(parts) if parts else "-"
+
+
 @cli.group()
 def alerts():
     """Custom price and indicator alerts for instruments."""
@@ -2719,9 +2729,11 @@ async def alerts_list(ctx: click.Context, instrument_id: str):
             table.add_column("Price/Value")
             table.add_column("Interval")
             table.add_column("Period")
+            table.add_column("Details")
             table.add_column("Updated")
             for s in data.settings:
                 pv = str(s.price) if s.price is not None else (str(s.value) if s.value is not None else "-")
+                details = _alert_details(s)
                 table.add_row(
                     (s.id or "-")[:8],
                     s.setting_type or "-",
@@ -2729,6 +2741,7 @@ async def alerts_list(ctx: click.Context, instrument_id: str):
                     pv,
                     s.interval or "-",
                     str(s.period) if s.period is not None else "-",
+                    details,
                     _format_value(s.updated_at),
                 )
             console.print(table)
@@ -2767,7 +2780,7 @@ async def alerts_create(
 
     SETTING_TYPE: price_above, price_below, rsi_above, rsi_below,
     price_above_sma, price_below_sma, price_above_ema, price_below_ema,
-    vwap_above, vwap_below, macd_above_signal, macd_below_signal,
+    price_above_vwap, price_below_vwap, macd_above_signal, macd_below_signal,
     price_above_boll_upper, price_below_boll_lower.
     """
     async with get_authenticated_client() as client:
@@ -2793,6 +2806,9 @@ async def alerts_create(
 @click.argument("alert_id")
 @click.option("--enabled/--disabled", default=None, help="Enable or disable the alert.")
 @click.option("--price", type=str, default=None, help="New target price.")
+@click.option("--value", type=str, default=None, help="New threshold value (for RSI/VWAP alerts).")
+@click.option("--interval", type=str, default=None, help="New interval: 5m, 10m, 1h, 1d, 1w.")
+@click.option("--period", type=int, default=None, help="New look-back period.")
 @click.pass_context
 @async_command
 @handle_errors
@@ -2802,6 +2818,9 @@ async def alerts_update(
     alert_id: str,
     enabled: bool | None,
     price: str | None,
+    value: str | None,
+    interval: str | None,
+    period: int | None,
 ):
     """Update an existing alert by its ID."""
     async with get_authenticated_client() as client:
@@ -2817,7 +2836,8 @@ async def alerts_update(
 
         data = await client.alerts.update_alert(
             instrument_id, alert_id, target.setting_type,
-            enabled=enabled, price=price,
+            enabled=enabled, price=price, value=value,
+            interval=interval, period=period,
         )
         if _use_json(ctx):
             output_json(data)

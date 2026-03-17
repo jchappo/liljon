@@ -21,8 +21,8 @@ from liljon.models.alerts import AlertSettings
 #   'price_below_sma'          Price crosses below Simple Moving Average
 #   'price_above_ema'          Price crosses above Exponential Moving Average
 #   'price_below_ema'          Price crosses below Exponential Moving Average
-#   'vwap_above'               Price crosses above Volume-Weighted Average Price
-#   'vwap_below'               Price crosses below Volume-Weighted Average Price
+#   'price_above_vwap'         Price crosses above Volume-Weighted Average Price
+#   'price_below_vwap'         Price crosses below Volume-Weighted Average Price
 #   'macd_above_signal'        MACD crosses above signal line
 #   'macd_below_signal'        MACD crosses below signal line
 #   'price_above_boll_upper'   Price crosses above upper Bollinger Band
@@ -94,7 +94,7 @@ class AlertsAPI:
                 Indicator alerts: 'rsi_above', 'rsi_below',
                     'price_above_sma', 'price_below_sma',
                     'price_above_ema', 'price_below_ema',
-                    'vwap_above', 'vwap_below',
+                    'price_above_vwap', 'price_below_vwap',
                     'macd_above_signal', 'macd_below_signal',
                     'price_above_boll_upper', 'price_below_boll_lower'.
             enabled: Whether the alert is active (default True).
