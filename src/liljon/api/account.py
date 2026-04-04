@@ -90,6 +90,32 @@ class AccountAPI:
             ))
         return watchlists
 
+    async def get_watchlist_by_name(self, name: str) -> Watchlist:
+        """Fetch a single watchlist by display_name, only loading items for that list.
+
+        This avoids fetching items for every watchlist (some types like options
+        don't support the items endpoint and return 400 errors).
+        """
+        data = await self._transport.get(ep.all_watchlists(), params={"owner_type": "custom"})
+        for r in data.get("results", []):
+            display_name = r.get("display_name") or r.get("name") or ""
+            if display_name.lower() != name.lower():
+                continue
+            wl_id = r.get("id")
+            items: list[WatchlistItem] = []
+            if wl_id:
+                items_data = await self._transport.get(ep.watchlist_items(wl_id))
+                raw_items = items_data.get("results", [])
+                items = [WatchlistItem(**i) for i in raw_items if isinstance(i, dict)]
+            return Watchlist(
+                id=wl_id,
+                url=r.get("url"),
+                name=r.get("name"),
+                display_name=r.get("display_name"),
+                items=items,
+            )
+        raise ValueError(f"Watchlist '{name}' not found")
+
     async def create_watchlist(self, name: str) -> Watchlist:
         """Create a new custom watchlist with the given name."""
         payload = {"display_name": name}
