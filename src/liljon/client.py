@@ -85,6 +85,17 @@ class RobinhoodClient:
         """Check if the transport has an active auth header."""
         return self._transport.is_authenticated
 
+    @property
+    def access_token(self) -> str | None:
+        """Read the cached OAuth access token, or None if no session is cached.
+
+        Reads from the encrypted token cache on every call. Callers that hot-path
+        this (e.g. per-frame in a streaming client) should cache the value in
+        memory and only refresh when their downstream token is about to expire.
+        """
+        cached = self._token_cache.load()
+        return cached.access_token if cached else None
+
     def get_account_number(self) -> str | None:
         """Read the stored account number."""
         return self._auth.get_account_number()
