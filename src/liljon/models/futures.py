@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 # ── Arsenal endpoints (camelCase) ─────────────────────────────────────────────
 
@@ -191,9 +191,22 @@ class FuturesBuyingPower(BaseModel):
 
 
 class FuturesOrder(BaseModel):
-    """A futures order (placed or historical)."""
+    """A futures order (placed or historical).
 
-    id: str
+    Robinhood's ``/ceres/v1/orders/`` endpoint returns at least two
+    payload shapes: the canonical snake_case form (``id``, ``state``,
+    ``order_type``, ...) and a camelCase variant seen on some records
+    (notably REJECTED orders) that uses ``orderId`` and ``derivedState``.
+    The aliases below let both shapes parse into the same model so a
+    single odd-shaped order doesn't crash ``get_orders()``.
+    """
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("id", "orderId"),
+    )
     account_url: str | None = None
     contract_id: str | None = None
     symbol: str | None = None
@@ -203,7 +216,10 @@ class FuturesOrder(BaseModel):
     price: Decimal | None = None
     stop_price: Decimal | None = None
     time_in_force: str | None = None
-    state: str | None = None
+    state: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("state", "derivedState"),
+    )
     filled_quantity: Decimal | None = None
     average_price: Decimal | None = None
     created_at: datetime | None = None
