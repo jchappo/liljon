@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import uuid
 from decimal import Decimal
 
 from liljon import _endpoints as ep
@@ -238,6 +239,68 @@ class FuturesAPI:
     async def get_order(self, order_id: str) -> FuturesOrder:
         """Fetch a specific futures order by ID."""
         data = await self._transport.get(ep.futures_order(order_id), headers=_FUTURES_HEADERS)
+        return FuturesOrder(**data)
+
+    async def place_order(
+        self,
+        contract_id: str,
+        side: str,
+        quantity: int,
+        account_id: str,
+        order_type: str = "LIMIT",
+        limit_price: Decimal | str | None = None,
+        stop_price: Decimal | str | None = None,
+        time_in_force: str = "GFD",
+    ) -> FuturesOrder:
+        """Place a futures order.
+
+        Args:
+            contract_id: Futures contract UUID.
+            side: ``"BUY"`` or ``"SELL"``.
+            quantity: Number of contracts.
+            account_id: Futures account UUID.
+            order_type: ``"MARKET"``, ``"LIMIT"``, or ``"STOP_MARKET"``.
+                Robinhood futures does not support stop-limit; use
+                ``"STOP_MARKET"`` for stop orders.
+            limit_price: Required for LIMIT orders.
+            stop_price: Required for STOP_MARKET orders.
+            time_in_force: ``"GFD"`` (good for day) or ``"GTC"``
+                (good til cancelled).
+        """
+        order_trigger = "IMMEDIATE"
+        payload_order_type = order_type
+
+        if order_type in ("STOP_MARKET", "STOP_LIMIT"):
+            order_trigger = "STOP"
+            payload_order_type = "MARKET"
+            if stop_price is None:
+                raise ValueError("stop_price is required for stop orders")
+
+        payload: dict = {
+            "accountId": account_id,
+            "quantity": str(quantity),
+            "orderType": payload_order_type,
+            "orderTrigger": order_trigger,
+            "timeInForce": time_in_force,
+            "refId": str(uuid.uuid4()),
+            "legs": [
+                {
+                    "legId": "A",
+                    "contractId": contract_id,
+                    "contractType": "OUTRIGHT",
+                    "ratioQuantity": 1,
+                    "orderSide": side.upper(),
+                }
+            ],
+        }
+        if limit_price is not None:
+            payload["limitPrice"] = str(limit_price)
+        if stop_price is not None:
+            payload["stopPrice"] = str(stop_price)
+
+        data = await self._transport.post(
+            ep.futures_orders(), json=payload, headers=_FUTURES_HEADERS
+        )
         return FuturesOrder(**data)
 
     async def cancel_order(self, order_id: str, account_id: str | None = None) -> FuturesOrder:
