@@ -312,9 +312,9 @@ class FuturesAPI:
     ) -> FuturesOrder:
         """Replace (edit) a pending futures order.
 
-        Robinhood does not support PATCH on futures orders. Instead,
-        POST a new order with ``replacesOrderId`` set to the original.
-        The broker atomically cancels the old order and places the new one.
+        Robinhood futures does not support atomic replace — this
+        cancels the original order and places a new one with the
+        updated price/quantity.
 
         Args:
             order_id: The existing order UUID to replace.
@@ -326,40 +326,21 @@ class FuturesAPI:
         original = await self.get_order(order_id)
         if not account_id:
             account_id = original.account_id
-        legs = []
-        if original.order_legs:
-            for leg in original.order_legs:
-                legs.append({
-                    "legId": leg.leg_id or "A",
-                    "contractId": leg.contract_id,
-                    "contractType": leg.contract_type or "OUTRIGHT",
-                    "ratioQuantity": leg.ratio_quantity or 1,
-                    "orderSide": leg.order_side or original.side,
-                })
-        else:
-            legs.append({
-                "legId": "A",
-                "contractId": original.contract_id,
-                "contractType": "OUTRIGHT",
-                "ratioQuantity": 1,
-                "orderSide": original.side or "BUY",
-            })
 
-        payload: dict = {
-            "accountId": account_id,
-            "quantity": str(quantity),
-            "orderType": original.order_type or "LIMIT",
-            "orderTrigger": "IMMEDIATE",
-            "timeInForce": original.time_in_force or "GFD",
-            "limitPrice": str(limit_price),
-            "refId": str(uuid.uuid4()),
-            "replacesOrderId": order_id,
-            "legs": legs,
-        }
-        data = await self._transport.post(
-            ep.futures_orders(), json=payload, headers=_FUTURES_HEADERS
+        contract_id = original.contract_id
+        side = original.side or "BUY"
+
+        await self.cancel_order(order_id, account_id=account_id)
+
+        return await self.place_order(
+            contract_id=contract_id,
+            side=side,
+            quantity=quantity,
+            account_id=account_id,
+            order_type=original.order_type or "LIMIT",
+            limit_price=limit_price,
+            time_in_force=original.time_in_force or "GFD",
         )
-        return FuturesOrder(**data)
 
     async def cancel_order(self, order_id: str, account_id: str | None = None) -> FuturesOrder:
         """Cancel a pending futures order by ID.
