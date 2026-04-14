@@ -5,7 +5,9 @@ from __future__ import annotations
 from datetime import datetime
 from decimal import Decimal
 
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field
+from typing import Any
+
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, model_validator
 
 # ── Arsenal endpoints (camelCase) ─────────────────────────────────────────────
 
@@ -190,15 +192,37 @@ class FuturesBuyingPower(BaseModel):
 # ── Orders / Account (existing, unchanged) ───────────────────────────────────
 
 
+class FuturesOrderLeg(BaseModel):
+    """A single leg within a futures order."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: str | None = None
+    leg_id: str | None = Field(default=None, validation_alias=AliasChoices("leg_id", "legId"))
+    contract_type: str | None = Field(
+        default=None, validation_alias=AliasChoices("contract_type", "contractType")
+    )
+    contract_id: str | None = Field(
+        default=None, validation_alias=AliasChoices("contract_id", "contractId")
+    )
+    ratio_quantity: int | None = Field(
+        default=None, validation_alias=AliasChoices("ratio_quantity", "ratioQuantity")
+    )
+    order_side: str | None = Field(
+        default=None, validation_alias=AliasChoices("order_side", "orderSide")
+    )
+    average_price: str | None = Field(
+        default=None, validation_alias=AliasChoices("average_price", "averagePrice")
+    )
+
+
 class FuturesOrder(BaseModel):
     """A futures order (placed or historical).
 
-    Robinhood's ``/ceres/v1/orders/`` endpoint returns at least two
-    payload shapes: the canonical snake_case form (``id``, ``state``,
-    ``order_type``, ...) and a camelCase variant seen on some records
-    (notably REJECTED orders) that uses ``orderId`` and ``derivedState``.
-    The aliases below let both shapes parse into the same model so a
-    single odd-shaped order doesn't crash ``get_orders()``.
+    Robinhood's ``/ceres/v1/orders/`` endpoint returns camelCase keys
+    (``orderId``, ``orderState``, ``limitPrice``, ``orderLegs``, etc.).
+    The aliases below let both camelCase and snake_case shapes parse
+    into the same model.
     """
 
     model_config = ConfigDict(populate_by_name=True)
@@ -207,24 +231,70 @@ class FuturesOrder(BaseModel):
         default=None,
         validation_alias=AliasChoices("id", "orderId"),
     )
-    account_url: str | None = None
+    account_id: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("account_id", "accountId", "account_url"),
+    )
     contract_id: str | None = None
     symbol: str | None = None
     side: str | None = None
-    order_type: str | None = None
+    order_type: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("order_type", "orderType"),
+    )
     quantity: Decimal | None = None
-    price: Decimal | None = None
-    stop_price: Decimal | None = None
-    time_in_force: str | None = None
+    price: Decimal | None = Field(
+        default=None,
+        validation_alias=AliasChoices("price", "limitPrice"),
+    )
+    stop_price: Decimal | None = Field(
+        default=None,
+        validation_alias=AliasChoices("stop_price", "stopPrice"),
+    )
+    time_in_force: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("time_in_force", "timeInForce"),
+    )
     state: str | None = Field(
         default=None,
-        validation_alias=AliasChoices("state", "derivedState"),
+        validation_alias=AliasChoices("state", "derivedState", "orderState"),
     )
-    filled_quantity: Decimal | None = None
+    filled_quantity: Decimal | None = Field(
+        default=None,
+        validation_alias=AliasChoices("filled_quantity", "filledQuantity"),
+    )
     average_price: Decimal | None = None
-    created_at: datetime | None = None
-    updated_at: datetime | None = None
-    closing_strategy: str | None = None
+    created_at: datetime | None = Field(
+        default=None,
+        validation_alias=AliasChoices("created_at", "createdAt"),
+    )
+    updated_at: datetime | None = Field(
+        default=None,
+        validation_alias=AliasChoices("updated_at", "updatedAt"),
+    )
+    closing_strategy: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("closing_strategy", "closingStrategy"),
+    )
+    order_legs: list[FuturesOrderLeg] | None = Field(
+        default=None,
+        validation_alias=AliasChoices("order_legs", "orderLegs"),
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _extract_from_legs(cls, data: Any) -> Any:
+        """Extract side and contract_id from the first order leg."""
+        if not isinstance(data, dict):
+            return data
+        legs = data.get("orderLegs") or data.get("order_legs") or []
+        if legs and isinstance(legs, list):
+            first = legs[0] if isinstance(legs[0], dict) else {}
+            if not data.get("side"):
+                data["side"] = first.get("orderSide") or first.get("order_side")
+            if not data.get("contract_id") and not data.get("contractId"):
+                data["contract_id"] = first.get("contractId") or first.get("contract_id")
+        return data
 
 
 class FuturesAccount(BaseModel):
