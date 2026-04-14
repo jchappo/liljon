@@ -240,6 +240,24 @@ class FuturesAPI:
         data = await self._transport.get(ep.futures_order(order_id), headers=_FUTURES_HEADERS)
         return FuturesOrder(**data)
 
+    async def cancel_order(self, order_id: str, account_id: str | None = None) -> FuturesOrder:
+        """Cancel a pending futures order by ID.
+
+        Args:
+            order_id: The order UUID to cancel.
+            account_id: Futures account UUID. If not provided, it is
+                fetched from the order itself.
+        """
+        if not account_id:
+            order = await self.get_order(order_id)
+            account_id = order.account_id
+        data = await self._transport.post(
+            ep.cancel_futures_order(order_id),
+            json={"accountId": account_id},
+            headers=_FUTURES_HEADERS,
+        )
+        return FuturesOrder(**data)
+
     async def calculate_pnl(self) -> dict[str, Decimal]:
         """Calculate realized P&L from closing futures orders.
 

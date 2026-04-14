@@ -356,6 +356,10 @@ def futures_order(order_id: str) -> str:
     return f"{BASE}/ceres/v1/orders/{order_id}/"
 
 
+def cancel_futures_order(order_id: str) -> str:
+    return f"{BASE}/ceres/v1/orders/{order_id}/cancel/"
+
+
 def futures_products(product_id: str) -> str:
     """Futures product metadata (contract specs)."""
     return f"{BASE}/arsenal/v1/futures/products/{product_id}"
