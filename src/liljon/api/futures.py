@@ -251,6 +251,7 @@ class FuturesAPI:
         limit_price: Decimal | str | None = None,
         stop_price: Decimal | str | None = None,
         time_in_force: str = "GFD",
+        ref_id: str | None = None,
     ) -> FuturesOrder:
         """Place a futures order.
 
@@ -266,6 +267,10 @@ class FuturesAPI:
             stop_price: Required for STOP_MARKET orders.
             time_in_force: ``"GFD"`` (good for day) or ``"GTC"``
                 (good til cancelled).
+            ref_id: Optional idempotency reference ID. If the same ID
+                is submitted twice the Robinhood API returns the
+                existing order rather than creating a duplicate.
+                Auto-generated via ``uuid4`` if ``None``.
         """
         order_trigger = "IMMEDIATE"
         payload_order_type = order_type
@@ -282,7 +287,7 @@ class FuturesAPI:
             "orderType": payload_order_type,
             "orderTrigger": order_trigger,
             "timeInForce": time_in_force,
-            "refId": str(uuid.uuid4()),
+            "refId": ref_id or str(uuid.uuid4()),
             "legs": [
                 {
                     "legId": "A",
