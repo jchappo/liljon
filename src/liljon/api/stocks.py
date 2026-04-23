@@ -35,6 +35,19 @@ class StocksAPI:
         results = data.get("results", [])
         return [StockInstrument(**r) for r in results if r is not None]
 
+    async def get_instruments_by_ids(self, instrument_ids: list[str]) -> list[StockInstrument]:
+        """Bulk-fetch instruments by comma-separated IDs via /instruments/?ids=U,U,...
+
+        One HTTP round trip regardless of batch size. Callers should chunk long
+        lists (Robinhood rejects oversized URLs) the same way historicals are
+        chunked.
+        """
+        if not instrument_ids:
+            return []
+        data = await self._transport.get(ep.instruments(), params={"ids": ",".join(instrument_ids)})
+        results = data.get("results", [])
+        return [StockInstrument(**r) for r in results if r is not None]
+
     async def get_instrument_by_id(self, instrument_id: str) -> StockInstrument:
         """Fetch a specific instrument by its ID or full URL."""
         url = instrument_id if instrument_id.startswith("http") else ep.instrument(instrument_id)
@@ -94,7 +107,14 @@ class StocksAPI:
     async def get_latest_price(self, symbols: list[str], bounds: str = "regular") -> dict[str, str | None]:
         """Fetch the latest trade price for symbols. Returns {symbol: price_string}."""
         quotes = await self.get_quotes(symbols, bounds=bounds)
-        return {q.symbol: str(q.last_extended_hours_trade_price) if q.last_extended_hours_trade_price is not None else str(q.last_trade_price) for q in quotes}
+        return {
+            q.symbol: (
+                str(q.last_extended_hours_trade_price)
+                if q.last_extended_hours_trade_price is not None
+                else str(q.last_trade_price)
+            )
+            for q in quotes
+        }
 
     async def get_fundamentals_by_id(self, instrument_id: str, bounds: str = "regular") -> Fundamentals:
         """Fetch fundamentals by instrument ID."""
@@ -118,7 +138,8 @@ class StocksAPI:
         if start_date:
             params["start_date"] = start_date
         data = await self._transport.get(ep.fundamentals_short(), params=params)
-        return data.get("data", [])
+        results: list[dict] = data.get("data", [])
+        return results
 
     async def get_historicals_by_ids(
         self,
@@ -142,4 +163,5 @@ class StocksAPI:
             "bounds": bounds,
         }
         data = await self._transport.get(ep.historicals_by_ids(), params=params)
-        return data.get("results", [])
+        results: list[dict] = data.get("results", [])
+        return results
