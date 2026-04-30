@@ -68,6 +68,12 @@ class RobinhoodClient:
         """Phase 2: Submit SMS/email verification code to complete login."""
         return await self._auth.submit_verification(code)
 
+    async def await_device_approval(self, timeout: float = 180.0) -> LoginResult:
+        """Phase 2 (push variant): wait for the user to approve the pending
+        device-approval ("prompt") challenge in the Robinhood mobile app.
+        """
+        return await self._auth.await_device_approval(timeout=timeout)
+
     async def try_restore_session(self) -> bool:
         """Attempt to restore a session from the encrypted token cache."""
         return await self._auth.try_restore_session()

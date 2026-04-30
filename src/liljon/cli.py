@@ -148,9 +148,19 @@ async def get_authenticated_client() -> AsyncIterator[RobinhoodClient]:
         if result.status == "challenge_required":
             challenge = result.challenge
             assert challenge is not None
-            console.print(f"[cyan]2FA required ({challenge.challenge_type}). Check your device.[/cyan]")
-            code = Prompt.ask("Verification code")
-            result = await client.submit_verification(code)
+            if challenge.challenge_type == "prompt":
+                console.print(
+                    "[cyan]Device approval required. Open the Robinhood app on your "
+                    "phone and tap Approve.[/cyan]"
+                )
+                with console.status("Waiting for approval...", spinner="dots"):
+                    result = await client.await_device_approval()
+            else:
+                console.print(
+                    f"[cyan]2FA required ({challenge.challenge_type}). Check your device.[/cyan]"
+                )
+                code = Prompt.ask("Verification code")
+                result = await client.submit_verification(code)
 
         if result.status != "logged_in":
             raise click.ClickException(f"Login failed: {result.message}")

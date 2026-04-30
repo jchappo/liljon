@@ -4,8 +4,10 @@ Implements:
 1. try_restore_session() — load cached tokens, refresh if near expiry
 2. login(username, password) — POST credentials, handle challenge or direct login
 3. submit_verification(code) — respond to SMS/email challenge, finalize login
-4. refresh() — use refresh_token to get a new access_token
-5. logout() — clear transport auth + delete cache
+4. await_device_approval() — wait for the user to approve a push-notification
+   ("prompt") challenge in the Robinhood mobile app, then finalize login
+5. refresh() — use refresh_token to get a new access_token
+6. logout() — clear transport auth + delete cache
 """
 
 from __future__ import annotations
@@ -28,6 +30,7 @@ SMS_POLL_TIMEOUT = 120
 SMS_POLL_INTERVAL = 5
 WORKFLOW_POLL_TIMEOUT = 120
 WORKFLOW_POLL_RETRIES = 5
+PROMPT_APPROVAL_TIMEOUT = 180  # seconds the user has to tap Approve on phone
 
 
 class AuthFlow:
@@ -185,6 +188,54 @@ class AuthFlow:
 
         return LoginResult(status="logged_in", message=f"Successfully connected as {username}", username=username)
 
+    async def await_device_approval(
+        self, timeout: float = PROMPT_APPROVAL_TIMEOUT
+    ) -> LoginResult:
+        """Phase 2 (push variant): wait for the user to approve the pending
+        device-approval ("prompt") challenge in the Robinhood mobile app, then
+        finalize login.
+        """
+        if (
+            not self._pending_challenge
+            or not self._pending_login_payload
+            or self._pending_challenge.challenge_type != "prompt"
+        ):
+            return LoginResult(
+                status="error",
+                message="No pending device-approval challenge. Call login() first.",
+            )
+
+        machine_id = self._pending_challenge.machine_id
+        try:
+            await self._poll_workflow_approval(
+                machine_id, timeout=timeout, raise_on_timeout=True
+            )
+        except AuthenticationError as exc:
+            return LoginResult(status="error", message=str(exc))
+
+        # Re-POST login payload to get the access token (same finalization path
+        # as submit_verification, just without the challenge_respond POST).
+        data = await self._transport.post(
+            ep.login(), data=self._pending_login_payload, raise_on_error=False
+        )
+        if "access_token" not in data:
+            detail = data.get("detail", data.get("error", ""))
+            return LoginResult(
+                status="error",
+                message=f"Failed to obtain access token after device approval. {detail}".strip(),
+            )
+
+        username = self._pending_username or "unknown"
+        self._finalize(data, self._pending_login_payload, username)
+        self._pending_challenge = None
+        self._pending_login_payload = None
+        self._pending_username = None
+        return LoginResult(
+            status="logged_in",
+            message=f"Successfully connected as {username}",
+            username=username,
+        )
+
     async def refresh(self) -> bool:
         """Refresh the access token using the stored refresh_token. Returns True on success."""
         if not self._token_data or not self._token_data.refresh_token:
@@ -280,7 +331,7 @@ class AuthFlow:
         logger.info("Token refreshed for %s", self._token_data.username)
 
     async def _poll_for_challenge(self, machine_id: str) -> ChallengeInfo:
-        """Poll pathfinder until a SMS/email challenge is issued."""
+        """Poll pathfinder until a challenge is issued (SMS, email, or prompt)."""
         elapsed = 0.0
         while elapsed < SMS_POLL_TIMEOUT:
             await asyncio.sleep(SMS_POLL_INTERVAL)
@@ -299,12 +350,20 @@ class AuthFlow:
             challenge_type = challenge["type"]
             challenge_status = challenge["status"]
             challenge_id = challenge["id"]
+            logger.debug(
+                "pathfinder challenge: type=%s status=%s id=%s",
+                challenge_type, challenge_status, challenge_id,
+            )
 
             if challenge_type == "prompt":
-                raise AuthenticationError(
-                    "Robinhood requested device approval via push notification. "
-                    "Only SMS and email verification are supported. "
-                    "Please enable SMS 2FA in your Robinhood app settings."
+                # Robinhood pushed an approval prompt to the user's mobile device.
+                # The challenge has already been issued — surface it so the caller
+                # can wait on await_device_approval().
+                return ChallengeInfo(
+                    challenge_id=challenge_id,
+                    challenge_type=challenge_type,
+                    machine_id=machine_id,
+                    status=challenge_status,
                 )
 
             if challenge_type in ("sms", "email") and challenge_status == "issued":
@@ -315,19 +374,33 @@ class AuthFlow:
                     status=challenge_status,
                 )
 
-        raise AuthenticationError("Timed out waiting for SMS challenge to be issued by Robinhood")
+        raise AuthenticationError("Timed out waiting for challenge to be issued by Robinhood")
 
-    async def _poll_workflow_approval(self, machine_id: str) -> None:
-        """Poll the verification workflow until approved or timeout."""
+    async def _poll_workflow_approval(
+        self,
+        machine_id: str,
+        timeout: float = WORKFLOW_POLL_TIMEOUT,
+        raise_on_timeout: bool = False,
+    ) -> None:
+        """Poll the verification workflow until approved or timeout.
+
+        With raise_on_timeout=False (default), logs a warning and returns on
+        timeout so the SMS/email path can still attempt the final token POST
+        (Robinhood occasionally lags before the workflow flips to approved).
+        With raise_on_timeout=True, raises AuthenticationError — used by the
+        push-prompt path where timing out means the user never approved.
+        """
         elapsed = 0.0
         retries = WORKFLOW_POLL_RETRIES
 
-        while elapsed < WORKFLOW_POLL_TIMEOUT and retries > 0:
+        while elapsed < timeout and retries > 0:
             try:
                 payload = {"sequence": 0, "user_input": {"status": "continue"}}
                 resp = await self._transport.post(ep.pathfinder_inquiry(machine_id), json=payload)
                 if resp and "type_context" in resp:
-                    if resp["type_context"].get("result") == "workflow_status_approved":
+                    result = resp["type_context"].get("result")
+                    logger.debug("workflow approval poll: result=%s", result)
+                    if result == "workflow_status_approved":
                         return
             except Exception:
                 retries -= 1
@@ -335,5 +408,9 @@ class AuthFlow:
             await asyncio.sleep(3)
             elapsed += 3
 
-        # Proceed on timeout (matches observed Robinhood behavior)
+        if raise_on_timeout:
+            raise AuthenticationError(
+                "Timed out waiting for device approval. "
+                "Open the Robinhood app and tap Approve, then try again."
+            )
         logger.warning("Workflow approval poll timed out, proceeding with login attempt")
