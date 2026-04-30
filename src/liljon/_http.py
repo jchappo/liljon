@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import json as _json_module
 import logging
+import re
 from typing import Any
 
 import httpx
@@ -25,6 +26,17 @@ _DEFAULT_HEADERS = {
     "Connection": "keep-alive",
     "User-Agent": "*",
 }
+
+# Transient gateway failures we retry on idempotent GETs only. 502/503/504 are
+# the regular nginx flap signatures; the 403 + "Authorization key does not
+# exist in metadata" is what Robinhood's ceres gRPC gateway leaks when its
+# upstream is unhealthy — not a real auth check, just a misleading default
+# error envelope (confirmed against a known-good cached session).
+_TRANSIENT_STATUS_CODES = frozenset({502, 503, 504})
+_GRPC_AUTH_LEAK_RE = re.compile(
+    r"Authorization.*does not exist in metadata", re.IGNORECASE
+)
+_GET_RETRY_DELAYS = (0.5, 1.5, 3.0)  # seconds; len = max retries
 
 
 class HttpTransport:
@@ -92,8 +104,28 @@ class HttpTransport:
         params: dict[str, Any] | None = None,
         headers: dict[str, str] | None = None,
     ) -> dict[str, Any]:
-        """Send a GET request and return the parsed JSON response."""
-        resp = await self._ensure_client().get(url, params=params, headers=headers)
+        """Send a GET request and return the parsed JSON response.
+
+        Transient gateway failures (502/503/504, plus the gRPC code-7
+        "Authorization key does not exist in metadata" that Robinhood's
+        ceres gateway leaks on upstream flaps) are retried with backoff
+        — GETs are idempotent so this is safe. Real auth/rate-limit/4xx
+        errors are surfaced immediately on the first response.
+        """
+        delays = (0.0,) + _GET_RETRY_DELAYS
+        resp: httpx.Response | None = None
+        for attempt, delay in enumerate(delays):
+            if delay:
+                await asyncio.sleep(delay)
+            resp = await self._ensure_client().get(url, params=params, headers=headers)
+            if attempt < len(delays) - 1 and self._is_transient_failure(resp):
+                logger.warning(
+                    "Transient %s from %s — retrying (%d/%d)",
+                    resp.status_code, url, attempt + 1, len(_GET_RETRY_DELAYS),
+                )
+                continue
+            break
+        assert resp is not None
         self._raise_for_status(resp)
         return resp.json()
 
@@ -156,6 +188,29 @@ class HttpTransport:
             await self._client.aclose()
             self._client = None
             self._bound_loop_id = None
+
+    def _is_transient_failure(self, resp: httpx.Response) -> bool:
+        """Identify transient Robinhood gateway flaps that should be retried.
+
+        Returns True for HTTP 502/503/504, and for HTTP 403 responses whose
+        body contains the gRPC "Authorization key does not exist in metadata"
+        leak — that envelope is what ceres returns when its upstream service
+        is unhealthy, not a real auth rejection.
+        """
+        if resp.status_code in _TRANSIENT_STATUS_CODES:
+            return True
+        if resp.status_code == 403:
+            try:
+                body = resp.json()
+            except Exception:
+                return False
+            if not isinstance(body, dict):
+                return False
+            blob = " ".join(
+                str(body.get(k, "")) for k in ("message", "detail", "error")
+            )
+            return bool(_GRPC_AUTH_LEAK_RE.search(blob))
+        return False
 
     def _raise_for_status(self, resp: httpx.Response) -> None:
         """Map HTTP error status codes to typed exceptions."""
