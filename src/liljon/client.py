@@ -92,6 +92,16 @@ class RobinhoodClient:
         return self._transport.is_authenticated
 
     @property
+    def token_data(self):
+        """In-memory TokenData (or None if no session is loaded).
+
+        Populated by ``try_restore_session`` / ``login`` / ``refresh_token``;
+        callers can read ``token_data.expires_at`` to schedule a proactive
+        refresh before the access token lapses.
+        """
+        return self._auth.token_data
+
+    @property
     def access_token(self) -> str | None:
         """Read the cached OAuth access token, or None if no session is cached.
 
