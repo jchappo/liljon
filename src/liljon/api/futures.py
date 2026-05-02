@@ -231,9 +231,26 @@ class FuturesAPI:
             return FuturesAccount(**results[0])
         return None
 
-    async def get_orders(self) -> list[FuturesOrder]:
-        """Fetch futures order history using cursor-based pagination."""
-        results = await paginate_cursor(self._transport, ep.futures_orders(), headers=_FUTURES_HEADERS)
+    async def get_orders(
+        self,
+        states: str | None = None,
+    ) -> list[FuturesOrder]:
+        """Fetch futures order history using cursor-based pagination.
+
+        Args:
+            states: Comma-separated order states to filter on
+                (e.g. ``"queued,confirmed,open"`` for active orders only).
+                When ``None``, returns the full order history. Filtering
+                server-side is dramatically cheaper than pulling the
+                full history and filtering client-side — a stale account
+                with hundreds of historical fills can cut a single
+                ``get_orders`` call from ~500ms to ~150ms.
+        """
+        params = {"states": states} if states else None
+        results = await paginate_cursor(
+            self._transport, ep.futures_orders(),
+            params=params, headers=_FUTURES_HEADERS,
+        )
         return [FuturesOrder(**r) for r in results]
 
     async def get_order(self, order_id: str) -> FuturesOrder:
