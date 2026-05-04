@@ -1,10 +1,9 @@
 """Tests for the async HTTP transport."""
 
 import pytest
-import httpx
 
 from liljon._http import HttpTransport
-from liljon.exceptions import APIError, NotAuthenticatedError, RateLimitError
+from liljon.exceptions import APIError, NotAuthenticatedError, RateLimitError, SessionRevokedError
 
 
 @pytest.fixture
@@ -147,3 +146,95 @@ async def test_post_does_not_retry_on_502(transport, httpx_mock):
     with pytest.raises(APIError) as exc_info:
         await transport.post("https://api.robinhood.com/orders/", json={"x": 1})
     assert exc_info.value.status_code == 502
+
+
+async def test_token_revoked_recreates_client_and_recovers(transport, httpx_mock):
+    """First 401 with rh-auth-blocked-reason:token_revoked → discard httpx client → retry succeeds.
+
+    Mirrors the production failure mode where the running process gets stuck 401-ing while a
+    fresh process (same cached token) recovers. Recreating the client in-place should be
+    equivalent to a process restart from Robinhood's perspective.
+    """
+    transport.set_auth("Bearer", "token-still-valid")
+    httpx_mock.add_response(
+        url="https://api.robinhood.com/markets/XNYS/hours/2026-05-04/",
+        status_code=401,
+        text="Unauthorized",
+        headers={"rh-auth-blocked-reason": "token_revoked"},
+    )
+    httpx_mock.add_response(
+        url="https://api.robinhood.com/markets/XNYS/hours/2026-05-04/",
+        json={"is_open": True},
+    )
+    data = await transport.get("https://api.robinhood.com/markets/XNYS/hours/2026-05-04/")
+    assert data == {"is_open": True}
+
+
+async def test_token_revoked_persists_raises_session_revoked(transport, httpx_mock):
+    """When recreation does not clear the revocation, raise SessionRevokedError so callers know
+    the session is genuinely dead and an interactive re-login is required.
+    """
+    transport.set_auth("Bearer", "token-actually-dead")
+    for _ in range(2):
+        httpx_mock.add_response(
+            url="https://api.robinhood.com/test/",
+            status_code=401,
+            text="Unauthorized",
+            headers={"rh-auth-blocked-reason": "token_revoked"},
+        )
+    with pytest.raises(SessionRevokedError):
+        await transport.get("https://api.robinhood.com/test/")
+
+
+async def test_401_without_token_revoked_header_no_retry(transport, httpx_mock):
+    """A plain 401 (no token_revoked header) is not the stuck-state pattern — surface it directly
+    so callers see NotAuthenticatedError on the first attempt without burning a recreation cycle.
+    """
+    httpx_mock.add_response(
+        url="https://api.robinhood.com/test/",
+        status_code=401,
+        json={"detail": "Bad token"},
+    )
+    with pytest.raises(NotAuthenticatedError) as exc_info:
+        await transport.get("https://api.robinhood.com/test/")
+    assert not isinstance(exc_info.value, SessionRevokedError)
+
+
+async def test_token_revoked_recreation_preserves_auth_header(transport, httpx_mock):
+    """The recreated httpx client must carry the same Authorization header — recreation only
+    discards connection state, not credentials.
+    """
+    transport.set_auth("Bearer", "preserved-token")
+    httpx_mock.add_response(
+        url="https://api.robinhood.com/test/",
+        status_code=401,
+        text="Unauthorized",
+        headers={"rh-auth-blocked-reason": "token_revoked"},
+    )
+    httpx_mock.add_response(url="https://api.robinhood.com/test/", json={"ok": True})
+    await transport.get("https://api.robinhood.com/test/")
+    requests = httpx_mock.get_requests()
+    assert len(requests) == 2
+    assert requests[0].headers.get("Authorization") == "Bearer preserved-token"
+    assert requests[1].headers.get("Authorization") == "Bearer preserved-token"
+
+
+async def test_token_revoked_on_post_also_recovers(transport, httpx_mock):
+    """The recreate-and-retry path applies to POST as well (e.g. /oauth2/token/ refresh calls)."""
+    transport.set_auth("Bearer", "token-still-valid")
+    httpx_mock.add_response(
+        url="https://api.robinhood.com/oauth2/token/",
+        status_code=401,
+        text="Unauthorized",
+        headers={"rh-auth-blocked-reason": "token_revoked"},
+    )
+    httpx_mock.add_response(
+        url="https://api.robinhood.com/oauth2/token/",
+        json={"access_token": "new", "expires_in": 86400},
+    )
+    data = await transport.post(
+        "https://api.robinhood.com/oauth2/token/",
+        data={"grant_type": "refresh_token"},
+        raise_on_error=False,
+    )
+    assert data["access_token"] == "new"

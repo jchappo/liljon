@@ -18,6 +18,7 @@ from liljon.exceptions import (
     OrderError,
     RateLimitError,
     RobinhoodError,
+    SessionRevokedError,
     ValidationError,
 )
 
@@ -31,5 +32,6 @@ __all__ = [
     "RateLimitError",
     "RobinhoodClient",
     "RobinhoodError",
+    "SessionRevokedError",
     "ValidationError",
 ]

@@ -19,6 +19,13 @@ class NotAuthenticatedError(AuthenticationError):
     """Raised when an API call is made without a valid session (HTTP 401)."""
 
 
+class SessionRevokedError(NotAuthenticatedError):
+    """Raised when Robinhood explicitly marks the session as revoked (rh-auth-blocked-reason: token_revoked)
+    and the condition persists after recreating the underlying httpx client. Indicates the bearer token is
+    truly dead server-side and only an interactive re-login can recover.
+    """
+
+
 class ChallengeRequiredError(AuthenticationError):
     """Raised when Robinhood requires additional verification to proceed."""
 

@@ -14,7 +14,7 @@ from typing import Any
 
 import httpx
 
-from liljon.exceptions import APIError, NotAuthenticatedError, RateLimitError
+from liljon.exceptions import APIError, NotAuthenticatedError, RateLimitError, SessionRevokedError
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +37,10 @@ _GRPC_AUTH_LEAK_RE = re.compile(
     r"Authorization.*does not exist in metadata", re.IGNORECASE
 )
 _GET_RETRY_DELAYS = (0.5, 1.5, 3.0)  # seconds; len = max retries
+
+
+def _is_token_revoked(resp: httpx.Response) -> bool:
+    return resp.status_code == 401 and resp.headers.get("rh-auth-blocked-reason") == "token_revoked"
 
 
 class HttpTransport:
@@ -117,7 +121,7 @@ class HttpTransport:
         for attempt, delay in enumerate(delays):
             if delay:
                 await asyncio.sleep(delay)
-            resp = await self._ensure_client().get(url, params=params, headers=headers)
+            resp = await self._send("GET", url, params=params, headers=headers)
             if attempt < len(delays) - 1 and self._is_transient_failure(resp):
                 logger.warning(
                     "Transient %s from %s — retrying (%d/%d)",
@@ -143,7 +147,7 @@ class HttpTransport:
         When raise_on_error is False, the JSON body is returned even for non-2xx
         responses (matching robin_stocks behavior for auth endpoints).
         """
-        resp = await self._ensure_client().post(url, json=json, data=data, params=params, headers=headers)
+        resp = await self._send("POST", url, json=json, data=data, params=params, headers=headers)
         if raise_on_error:
             self._raise_for_status(resp)
         return resp.json()
@@ -156,7 +160,7 @@ class HttpTransport:
         headers: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         """Send a PATCH request and return the parsed JSON response."""
-        resp = await self._ensure_client().patch(url, json=json, params=params, headers=headers)
+        resp = await self._send("PATCH", url, json=json, params=params, headers=headers)
         self._raise_for_status(resp)
         return resp.json()
 
@@ -174,9 +178,7 @@ class HttpTransport:
             kwargs["headers"] = {**(headers or {}), "content-type": "application/json"}
         elif headers is not None:
             kwargs["headers"] = headers
-        resp = await self._ensure_client().request(
-            "DELETE", url, params=params, **kwargs
-        )
+        resp = await self._send("DELETE", url, params=params, **kwargs)
         self._raise_for_status(resp)
         if resp.status_code == 204:
             return None
@@ -188,6 +190,48 @@ class HttpTransport:
             await self._client.aclose()
             self._client = None
             self._bound_loop_id = None
+
+    async def _send(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
+        """Send a single HTTP request, recreating the httpx client once on a token_revoked 401.
+
+        Robinhood occasionally pins a `rh-auth-blocked-reason: token_revoked` flag to the in-process
+        httpx client's connection pool / cookies even though the cached bearer token is still valid —
+        verified empirically by observing that a fresh process using the same cached token recovers
+        immediately after the running process has been 401-ing for hours. On detecting that signature,
+        close and discard the current client (the next request creates a fresh one with the same
+        headers, including auth) and retry once. If the retry also returns token_revoked, the session
+        is genuinely dead and we raise SessionRevokedError so callers can surface it for re-login.
+        """
+        resp = await self._ensure_client().request(method, url, **kwargs)
+        if not _is_token_revoked(resp):
+            return resp
+
+        logger.warning(
+            "Robinhood returned 401 token_revoked on %s %s — recreating httpx client and retrying once",
+            method, url,
+        )
+        await self._discard_client()
+        resp = await self._ensure_client().request(method, url, **kwargs)
+        if _is_token_revoked(resp):
+            raise SessionRevokedError(
+                f"Robinhood session revoked: {url} (token_revoked persists after client recreation)"
+            )
+        return resp
+
+    async def _discard_client(self) -> None:
+        """Close the current httpx client; the next _ensure_client() will create a fresh one.
+
+        Auth headers live in self._headers and are copied into each new client, so the
+        bearer token survives recreation — only connection pool, cookies, and TLS state
+        are reset.
+        """
+        if self._client is not None:
+            try:
+                await self._client.aclose()
+            except Exception:
+                logger.debug("Error closing httpx client during recreation", exc_info=True)
+        self._client = None
+        self._bound_loop_id = None
 
     def _is_transient_failure(self, resp: httpx.Response) -> bool:
         """Identify transient Robinhood gateway flaps that should be retried.
