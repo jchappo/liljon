@@ -1,6 +1,6 @@
 """Test bounds parameter on stocks API methods."""
 import asyncio
-import json
+
 from liljon.client import RobinhoodClient
 
 BOUNDS_VALUES = ["regular", "extended", "trading", "24_5"]
@@ -24,7 +24,10 @@ async def main():
             try:
                 quotes = await client.stocks.get_quotes([SYMBOL], bounds=bounds)
                 q = quotes[0]
-                print(f"  bounds={bounds:10s}  last_trade={q.last_trade_price}  extended={q.last_extended_hours_trade_price}")
+                print(
+                    f"  bounds={bounds:10s}  last_trade={q.last_trade_price}  "
+                    f"extended={q.last_extended_hours_trade_price}"
+                )
             except Exception as e:
                 print(f"  bounds={bounds:10s}  ERROR: {e}")
 
@@ -36,7 +39,10 @@ async def main():
             try:
                 quotes = await client.stocks.get_quotes_by_ids([iid], bounds=bounds)
                 q = quotes[0]
-                print(f"  bounds={bounds:10s}  last_trade={q.last_trade_price}  extended={q.last_extended_hours_trade_price}")
+                print(
+                    f"  bounds={bounds:10s}  last_trade={q.last_trade_price}  "
+                    f"extended={q.last_extended_hours_trade_price}"
+                )
             except Exception as e:
                 print(f"  bounds={bounds:10s}  ERROR: {e}")
 

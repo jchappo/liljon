@@ -154,7 +154,7 @@ class AccountAPI:
         self, symbols: list[str], name: str = "Main"
     ) -> dict:
         """Remove symbols from a named watchlist via the midlands bulk-update endpoint."""
-        watchlist_id = await self._resolve_watchlist_id(name) 
+        watchlist_id = await self._resolve_watchlist_id(name)
         stocks_api = StocksAPI(self._transport)
         items = []
         for symbol in symbols:
@@ -175,7 +175,7 @@ class AccountAPI:
                 wl_id = r.get("id")
                 if wl_id is None:
                     raise ValueError(f"Watchlist '{name}' has no id")
-                return wl_id
+                return str(wl_id)
         raise ValueError(f"Watchlist '{name}' not found")
 
     async def get_dividends(self) -> list[Dividend]:

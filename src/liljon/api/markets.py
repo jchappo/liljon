@@ -17,7 +17,8 @@ class MarketsAPI:
     async def get_markets(self) -> list[dict[str, Any]]:
         """Fetch all available markets."""
         data = await self._transport.get(ep.markets())
-        return data.get("results", [])
+        results: list[dict[str, Any]] = data.get("results", [])
+        return results
 
     async def get_market_hours(self, market_code: str, date: str) -> dict[str, Any]:
         """Fetch market hours for a specific market and date.
@@ -35,12 +36,14 @@ class MarketsAPI:
             direction: 'up' or 'down'.
         """
         data = await self._transport.get(ep.movers(direction))
-        return data.get("results", [])
+        results: list[dict[str, Any]] = data.get("results", [])
+        return results
 
     async def get_categories(self) -> list[dict[str, Any]]:
         """Fetch discovery categories (tags)."""
         data = await self._transport.get(ep.categories())
-        return data.get("results", [])
+        results: list[dict[str, Any]] = data.get("results", [])
+        return results
 
     async def get_category_instruments(self, tag: str) -> dict[str, Any]:
         """Fetch a discovery category with its instrument URLs.

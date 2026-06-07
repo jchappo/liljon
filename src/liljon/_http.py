@@ -131,7 +131,8 @@ class HttpTransport:
             break
         assert resp is not None
         self._raise_for_status(resp)
-        return resp.json()
+        body: dict[str, Any] = resp.json()
+        return body
 
     async def post(
         self,
@@ -150,7 +151,8 @@ class HttpTransport:
         resp = await self._send("POST", url, json=json, data=data, params=params, headers=headers)
         if raise_on_error:
             self._raise_for_status(resp)
-        return resp.json()
+        body: dict[str, Any] = resp.json()
+        return body
 
     async def patch(
         self,
@@ -162,7 +164,8 @@ class HttpTransport:
         """Send a PATCH request and return the parsed JSON response."""
         resp = await self._send("PATCH", url, json=json, params=params, headers=headers)
         self._raise_for_status(resp)
-        return resp.json()
+        body: dict[str, Any] = resp.json()
+        return body
 
     async def delete(
         self,
@@ -182,7 +185,8 @@ class HttpTransport:
         self._raise_for_status(resp)
         if resp.status_code == 204:
             return None
-        return resp.json()
+        body: dict[str, Any] = resp.json()
+        return body
 
     async def close(self) -> None:
         """Close the underlying httpx client."""

@@ -51,7 +51,7 @@ class CryptoAPI:
     async def get_historicals(
         self,
         pair_id: str,
-        interval: str = "day",  
+        interval: str = "day",
         span: str = "year",
         bounds: str = "24_7",
     ) -> list[CryptoHistoricalBar]:

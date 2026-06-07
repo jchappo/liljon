@@ -245,7 +245,7 @@ class AlertsAPI:
             json={"settings": [setting]},
             params=_DEFAULT_PARAMS,
         )
-        return AlertSettings(**data)
+        return AlertSettings(**(data or {}))
 
     async def delete_alerts(
         self, instrument_id: str, settings: list[dict[str, Any]]
@@ -262,7 +262,7 @@ class AlertsAPI:
             json={"settings": settings},
             params=_DEFAULT_PARAMS,
         )
-        return AlertSettings(**data)
+        return AlertSettings(**(data or {}))
 
     # ── Convenience: Price alerts ────────────────────────────────────────
 

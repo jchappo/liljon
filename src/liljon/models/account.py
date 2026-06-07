@@ -96,6 +96,8 @@ class WatchlistItem(BaseModel):
     list_id: str | None = None
     object_id: str | None = None
     object_type: str | None = None
+    instrument_id: str | None = None
+    instrument_url: str | None = None
     symbol: str | None = None
     name: str | None = None
     price: Decimal | None = None

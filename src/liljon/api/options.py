@@ -95,7 +95,8 @@ class OptionsAPI:
         """
         params = {"strategy_codes": ",".join(strategy_codes)}
         data = await self._transport.get(ep.option_strategies(), params=params)
-        return data.get("results", [])
+        results: list[dict] = data.get("results", [])
+        return results
 
     async def get_chain_collateral(self, chain_id: str, account_number: str | None = None) -> dict:
         """Fetch collateral requirements for an option chain.

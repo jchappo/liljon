@@ -289,7 +289,8 @@ class OrdersAPI:
             ISO datetime string for when a GTC order would expire.
         """
         data = await self._transport.get(ep.orders_calculate_expiration())
-        return data["gtc_expire_datetime"]
+        expiration: str = data["gtc_expire_datetime"]
+        return expiration
 
     async def get_order_sessions(
         self,

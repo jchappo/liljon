@@ -48,7 +48,10 @@ async def test_get_positions(account_api, httpx_mock):
         url=re.compile(r"https://api\.robinhood\.com/positions/"),
         json={
             "results": [
-                {"instrument_url": "https://api.robinhood.com/instruments/abc/", "quantity": "10", "average_buy_price": "150.00"},
+                {
+                    "instrument_url": "https://api.robinhood.com/instruments/abc/",
+                    "quantity": "10", "average_buy_price": "150.00",
+                },
             ],
             "next": None,
         },
@@ -138,7 +141,10 @@ async def test_add_symbols_to_watchlist(account_api, httpx_mock):
         url=re.compile(r"https://api\.robinhood\.com/instruments/\?.*"),
         json={
             "results": [
-                {"id": "inst-1", "url": "https://api.robinhood.com/instruments/inst-1/", "symbol": "AAPL", "name": "Apple Inc"},
+                {
+                    "id": "inst-1", "url": "https://api.robinhood.com/instruments/inst-1/",
+                    "symbol": "AAPL", "name": "Apple Inc",
+                },
             ],
             "next": None,
         },
@@ -176,7 +182,10 @@ async def test_remove_symbols_from_watchlist(account_api, httpx_mock):
         url=re.compile(r"https://api\.robinhood\.com/instruments/\?.*"),
         json={
             "results": [
-                {"id": "inst-2", "url": "https://api.robinhood.com/instruments/inst-2/", "symbol": "TSLA", "name": "Tesla Inc"},
+                {
+                    "id": "inst-2", "url": "https://api.robinhood.com/instruments/inst-2/",
+                    "symbol": "TSLA", "name": "Tesla Inc",
+                },
             ],
             "next": None,
         },

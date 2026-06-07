@@ -1,6 +1,5 @@
 """Tests for ScreenersAPI with mocked HTTP responses."""
 
-import re
 
 import pytest
 
@@ -29,7 +28,9 @@ async def test_get_screeners(screeners_api, httpx_mock):
                 {
                     "id": "scr-1",
                     "display_name": "My Growth Screener",
-                    "filters": [{"key": "market_cap", "filter": {"type": "RANGE", "min": 1000000000}, "is_hidden": False}],
+                    "filters": [
+                        {"key": "market_cap", "filter": {"type": "RANGE", "min": 1000000000}, "is_hidden": False}
+                    ],
                     "columns": ["last_price", "percent_change"],
                     "sort_by": "percent_change",
                     "sort_direction": "DESC",
@@ -182,7 +183,7 @@ async def test_get_indicators_empty(screeners_api, httpx_mock):
 
 def _make_row(instrument_id: str, symbol: str, name: str, values: list[str]) -> dict:
     """Build a scan response row matching the Robinhood SDUI format."""
-    items = [
+    items: list[dict] = [
         {"component": {"sdui_component_type": "TABLE_INSTRUMENT_NAME", "name": name, "symbol": symbol}},
     ]
     for v in values:

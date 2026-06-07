@@ -16,10 +16,9 @@ import asyncio
 import json
 import re
 import sys
-import traceback
 from datetime import datetime
 from pathlib import Path
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import parse_qs, urlparse
 
 from playwright.async_api import async_playwright
 
@@ -230,7 +229,7 @@ async def main():
 
     # Save results
     print(f"\n{'=' * 70}")
-    print(f"  CAPTURE COMPLETE")
+    print("  CAPTURE COMPLETE")
     print(f"{'=' * 70}")
     print(f"  Total API calls:     {stats['total']}")
     print(f"  Unique endpoints:    {stats['unique']}")
@@ -256,7 +255,7 @@ async def main():
 
         # Print unique endpoints grouped by domain
         print(f"\n{'=' * 70}")
-        print(f"  UNIQUE ENDPOINTS BY DOMAIN")
+        print("  UNIQUE ENDPOINTS BY DOMAIN")
         print(f"{'=' * 70}")
         by_domain: dict[str, list[str]] = {}
         for ep in sorted(seen_endpoints):

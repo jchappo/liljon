@@ -356,8 +356,12 @@ class FuturesAPI:
         original = await self.get_order(order_id)
         if not account_id:
             account_id = original.account_id
+        if not account_id:
+            raise ValueError(f"Cannot replace order {order_id}: no account_id available")
 
         contract_id = original.contract_id
+        if not contract_id:
+            raise ValueError(f"Cannot replace order {order_id}: original order has no contract_id")
         side = original.side or "BUY"
 
         await self.cancel_order(order_id, account_id=account_id)

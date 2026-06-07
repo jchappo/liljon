@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from collections.abc import Sequence
 from contextlib import asynccontextmanager
 from datetime import datetime
 from decimal import Decimal
@@ -62,7 +63,7 @@ def _format_value(v: Any) -> str:
 
 
 def model_table(
-    items: list[BaseModel],
+    items: Sequence[BaseModel],
     columns: list[tuple[str, str]],
     title: str = "",
 ) -> Table:
@@ -280,11 +281,12 @@ def cli(ctx: click.Context, use_json: bool, session: str | None) -> None:
 
 
 def _use_json(ctx: click.Context) -> bool:
-    return ctx.obj.get("json", False)
+    return bool(ctx.obj.get("json", False))
 
 
 def _session(ctx: click.Context) -> str | None:
-    return ctx.obj.get("session")
+    session: str | None = ctx.obj.get("session")
+    return session
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -451,7 +453,9 @@ async def instrument(ctx: click.Context, symbol: str):
 @click.pass_context
 @async_command
 @handle_errors
-async def historicals(ctx: click.Context, symbols: tuple[str, ...], interval: str, span: str, bounds: str, last: int | None):
+async def historicals(
+    ctx: click.Context, symbols: tuple[str, ...], interval: str, span: str, bounds: str, last: int | None
+):
     """OHLCV historical bars."""
     async with get_authenticated_client() as client:
         result = await client.stocks.get_historicals(list(symbols), interval=interval, span=span, bounds=bounds)
@@ -1473,7 +1477,9 @@ async def options_strategy_quotes(ctx: click.Context, ids: tuple[str, ...], rati
 @click.pass_context
 @async_command
 @handle_errors
-async def options_pnl_chart(ctx: click.Context, legs: str, order_price: str, quantity: str, underlying_price: str | None):
+async def options_pnl_chart(
+    ctx: click.Context, legs: str, order_price: str, quantity: str, underlying_price: str | None
+):
     """Options profit-and-loss chart data."""
     async with get_authenticated_client() as client:
         data = await client.options.get_pnl_chart(
@@ -1568,9 +1574,9 @@ async def futures_quote(ctx: click.Context, contract_ids: tuple[str, ...]):
             else:
                 console.print(model_panel(data, title=f"Futures Quote — {data.symbol or contract_ids[0]}"))
         else:
-            data = await client.futures.get_quotes(list(contract_ids))
+            quotes = await client.futures.get_quotes(list(contract_ids))
             if _use_json(ctx):
-                output_json(data)
+                output_json(quotes)
             else:
                 cols = [
                     ("symbol", "Symbol"),
@@ -1582,7 +1588,7 @@ async def futures_quote(ctx: click.Context, contract_ids: tuple[str, ...]):
                     ("state", "State"),
                     ("updated_at", "Updated"),
                 ]
-                console.print(model_table(data, cols, title="Futures Quotes"))
+                console.print(model_table(quotes, cols, title="Futures Quotes"))
 
 
 @futures.command("product")
@@ -2343,7 +2349,9 @@ async def discovery_hedgefunds(ctx: click.Context, instrument_id: str):
                     ("shares_bought", "Bought"),
                     ("shares_sold", "Sold"),
                 ]
-                console.print(model_table(data.quarterly_aggregate_transactions, cols, title="Hedge Fund Quarterly Activity"))
+                console.print(
+                    model_table(data.quarterly_aggregate_transactions, cols, title="Hedge Fund Quarterly Activity")
+                )
 
 
 @discovery.command("hedgefund-transactions")
@@ -2673,7 +2681,16 @@ async def discovery_instrument_feed(ctx: click.Context, instrument_id: str, limi
 
 
 @screeners.command("query")
-@click.option("--indicator", "-i", multiple=True, required=True, help="Indicator in KEY=OPTION_ID format. For MULTI_SELECT, comma-separate IDs. Use 'screeners indicators' to find valid keys and option IDs.")
+@click.option(
+    "--indicator",
+    "-i",
+    multiple=True,
+    required=True,
+    help=(
+        "Indicator in KEY=OPTION_ID format. For MULTI_SELECT, comma-separate IDs. "
+        "Use 'screeners indicators' to find valid keys and option IDs."
+    ),
+)
 @click.option("--sort", default=None, help="Column key to sort by.")
 @click.option("--direction", type=click.Choice(["ASC", "DESC"]), default="DESC", help="Sort direction.")
 @click.option("--limit", default=25, help="Max results to display.")
@@ -2900,6 +2917,8 @@ async def alerts_update(
                 break
         if target is None:
             raise click.ClickException(f"Alert ID '{alert_id}' not found on this instrument.")
+        if target.setting_type is None:
+            raise click.ClickException(f"Alert '{alert_id}' has no setting_type to update.")
 
         data = await client.alerts.update_alert(
             instrument_id, alert_id, target.setting_type,
@@ -2938,6 +2957,8 @@ async def alerts_delete(
                 break
         if target is None:
             raise click.ClickException(f"Alert ID '{alert_id}' not found on this instrument.")
+        if target.setting_type is None:
+            raise click.ClickException(f"Alert '{alert_id}' has no setting_type to delete.")
 
         data = await client.alerts.delete_alert(
             instrument_id, alert_id, target.setting_type,

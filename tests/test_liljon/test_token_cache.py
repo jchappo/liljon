@@ -3,6 +3,7 @@
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -12,7 +13,7 @@ from liljon.auth.models import TokenData
 
 
 def _make_token_data(**overrides) -> TokenData:
-    defaults = {
+    defaults: dict[str, Any] = {
         "access_token": "test_access",
         "refresh_token": "test_refresh",
         "token_type": "Bearer",

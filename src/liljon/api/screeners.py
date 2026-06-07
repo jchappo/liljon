@@ -6,8 +6,6 @@ import logging
 from typing import Any
 
 from liljon import _endpoints as ep
-
-logger = logging.getLogger(__name__)
 from liljon._http import HttpTransport
 from liljon.models.screeners import (
     IndicatorCategory,
@@ -16,6 +14,8 @@ from liljon.models.screeners import (
     ScanResult,
     Screener,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class ScreenersAPI:

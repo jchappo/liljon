@@ -234,4 +234,5 @@ class DiscoveryAPI:
             "user_origin": "US",
         }
         data = await self._transport.get(ep.bonfire_search(), params=params)
-        return data.get("results", [])
+        results: list[dict] = data.get("results", [])
+        return results
