@@ -5,7 +5,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import patch
 
-from liljon.auth._token_cache import TokenCache
+import pytest
+
+from liljon.auth._token_cache import DEFAULT_SESSION, TokenCache
 from liljon.auth.models import TokenData
 
 
@@ -81,6 +83,101 @@ def test_delete_nonexistent():
     with tempfile.TemporaryDirectory() as tmpdir:
         cache = TokenCache(cache_path=str(Path(tmpdir) / "none.enc"))
         cache.delete()  # Should not raise
+
+
+def test_default_session_uses_legacy_path():
+    """The default session stores at the base path — no migration for old tokens."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        base = str(Path(tmpdir) / "liljon_tokens.enc")
+        legacy = TokenCache(cache_path=base)
+        default = TokenCache(cache_path=base, session="default")
+        implicit = TokenCache(cache_path=base)
+
+        assert legacy.path == Path(base)
+        assert default.path == Path(base)
+        assert implicit.session == DEFAULT_SESSION
+        assert default.path == implicit.path
+
+
+def test_named_session_uses_sibling_file():
+    """A named session lands next to the default file, not on top of it."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        base = str(Path(tmpdir) / "liljon_tokens.enc")
+        default = TokenCache(cache_path=base)
+        trading = TokenCache(cache_path=base, session="trading")
+
+        assert trading.session == "trading"
+        assert trading.path == Path(tmpdir) / "liljon_tokens.trading.enc"
+        assert trading.path != default.path
+
+
+def test_sessions_are_isolated():
+    """Saving one session leaves the other untouched."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        base = str(Path(tmpdir) / "liljon_tokens.enc")
+        default = TokenCache(cache_path=base, passphrase="k")
+        trading = TokenCache(cache_path=base, passphrase="k", session="trading")
+
+        default.save(_make_token_data(username="default-user", access_token="def-tok"))
+        trading.save(_make_token_data(username="trading-user", access_token="trd-tok"))
+
+        assert default.load().username == "default-user"
+        assert default.load().access_token == "def-tok"
+        assert trading.load().username == "trading-user"
+        assert trading.load().access_token == "trd-tok"
+
+
+def test_delete_only_affects_target_session():
+    """Deleting a named session keeps the default session's token in place."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        base = str(Path(tmpdir) / "liljon_tokens.enc")
+        default = TokenCache(cache_path=base, passphrase="k")
+        trading = TokenCache(cache_path=base, passphrase="k", session="trading")
+        default.save(_make_token_data())
+        trading.save(_make_token_data())
+
+        trading.delete()
+
+        assert not trading.path.exists()
+        assert default.path.exists()
+        assert default.load() is not None
+
+
+def test_list_sessions():
+    """list_sessions reports the default session first, then named ones sorted."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        base = str(Path(tmpdir) / "liljon_tokens.enc")
+        assert TokenCache.list_sessions(cache_path=base) == []
+
+        TokenCache(cache_path=base, passphrase="k", session="zebra").save(_make_token_data())
+        TokenCache(cache_path=base, passphrase="k", session="alpha").save(_make_token_data())
+        TokenCache(cache_path=base, passphrase="k").save(_make_token_data())
+
+        assert TokenCache.list_sessions(cache_path=base) == ["default", "alpha", "zebra"]
+
+
+def test_list_sessions_named_only():
+    """When only named sessions exist, the default is not reported."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        base = str(Path(tmpdir) / "liljon_tokens.enc")
+        TokenCache(cache_path=base, passphrase="k", session="trading").save(_make_token_data())
+
+        assert TokenCache.list_sessions(cache_path=base) == ["trading"]
+
+
+@pytest.mark.parametrize("name", ["", "  ", None, "default"])
+def test_normalize_session_defaults(name):
+    """Empty/blank/None/'default' all canonicalize to the default session."""
+    assert TokenCache.normalize_session(name) == DEFAULT_SESSION
+
+
+@pytest.mark.parametrize("name", ["../evil", "a/b", "spaces here", "dot.name", "weird!"])
+def test_invalid_session_name_rejected(name):
+    """Unsafe session names raise rather than escaping the cache directory."""
+    with pytest.raises(ValueError):
+        TokenCache.normalize_session(name)
+    with pytest.raises(ValueError):
+        TokenCache(session=name)
 
 
 def test_save_is_atomic():

@@ -40,9 +40,10 @@ class RobinhoodClient:
         cache_path: str | None = None,
         passphrase: str | None = None,
         timeout: float = 30.0,
+        session: str | None = None,
     ) -> None:
         self._transport = HttpTransport(timeout)
-        self._token_cache = TokenCache(cache_path, passphrase)
+        self._token_cache = TokenCache(cache_path, passphrase, session)
         self._auth = AuthFlow(self._transport, self._token_cache)
 
         # API namespaces
@@ -90,6 +91,16 @@ class RobinhoodClient:
     def is_authenticated(self) -> bool:
         """Check if the transport has an active auth header."""
         return self._transport.is_authenticated
+
+    @property
+    def session(self) -> str:
+        """Name of the session this client reads tokens from and writes them to."""
+        return self._token_cache.session
+
+    @staticmethod
+    def list_sessions(cache_path: str | None = None) -> list[str]:
+        """List the session names that have a cached token on this machine."""
+        return TokenCache.list_sessions(cache_path)
 
     @property
     def token_data(self):

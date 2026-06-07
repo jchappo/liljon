@@ -23,6 +23,7 @@ from rich.panel import Panel
 from rich.prompt import Prompt
 from rich.table import Table
 
+from liljon.auth._token_cache import DEFAULT_SESSION, TokenCache
 from liljon.client import RobinhoodClient
 from liljon.exceptions import (
     AuthenticationError,
@@ -130,11 +131,20 @@ def output_json(data: Any) -> None:
 
 # ── Auth Helpers ──────────────────────────────────────────────────────────────
 
+# Selected via the top-level ``--session`` option; None means the default session.
+# Held at module scope so the 100+ ``get_authenticated_client()`` call sites don't
+# each have to thread it through.
+_active_session: str | None = None
+
 
 @asynccontextmanager
-async def get_authenticated_client() -> AsyncIterator[RobinhoodClient]:
+async def get_authenticated_client(
+    session: str | None = None,
+) -> AsyncIterator[RobinhoodClient]:
     """Create a client, restore session or do interactive login, then yield it."""
-    async with RobinhoodClient() as client:
+    if session is None:
+        session = _active_session
+    async with RobinhoodClient(session=session) as client:
         if await client.try_restore_session():
             yield client
             return
@@ -241,17 +251,40 @@ def handle_errors(fn):
 # ── Top-Level Group ───────────────────────────────────────────────────────────
 
 
+def _validate_session(ctx: click.Context, param: click.Parameter, value: str | None) -> str | None:
+    """Click callback: validate/canonicalize the --session value."""
+    if value is None:
+        return None
+    try:
+        return TokenCache.normalize_session(value)
+    except ValueError as exc:
+        raise click.BadParameter(str(exc))
+
+
 @click.group()
 @click.option("--json", "use_json", is_flag=True, default=False, help="Output raw JSON instead of formatted tables.")
+@click.option(
+    "--session",
+    default=None,
+    callback=_validate_session,
+    help="Token session to use (a named token instance). Defaults to the default session.",
+)
 @click.pass_context
-def cli(ctx: click.Context, use_json: bool) -> None:
+def cli(ctx: click.Context, use_json: bool, session: str | None) -> None:
     """Robinhood CLI — test and interact with the Robinhood API."""
     ctx.ensure_object(dict)
     ctx.obj["json"] = use_json
+    ctx.obj["session"] = session
+    global _active_session
+    _active_session = session
 
 
 def _use_json(ctx: click.Context) -> bool:
     return ctx.obj.get("json", False)
+
+
+def _session(ctx: click.Context) -> str | None:
+    return ctx.obj.get("session")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -284,18 +317,22 @@ async def login(ctx: click.Context):
 @handle_errors
 async def status(ctx: click.Context):
     """Show auth status, username, token expiry."""
-    async with RobinhoodClient() as client:
+    async with RobinhoodClient(session=_session(ctx)) as client:
         restored = await client.try_restore_session()
         if not restored:
             if _use_json(ctx):
-                output_json({"authenticated": False})
+                output_json({"authenticated": False, "session": client.session})
             else:
-                console.print("[red]Not authenticated.[/red] Run 'auth login' to connect.")
+                console.print(
+                    f"[red]Not authenticated[/red] (session: {client.session}). "
+                    "Run 'auth login' to connect."
+                )
             return
 
         token_data = client._auth.token_data
         info = {
             "authenticated": True,
+            "session": client.session,
             "username": token_data.username if token_data else None,
             "account_number": client.get_account_number(),
             "expires_at": str(token_data.expires_at) if token_data and token_data.expires_at else None,
@@ -312,13 +349,33 @@ async def status(ctx: click.Context):
 @async_command
 @handle_errors
 async def logout(ctx: click.Context):
-    """Clear session and token cache."""
-    async with RobinhoodClient() as client:
+    """Clear the session and its token cache."""
+    async with RobinhoodClient(session=_session(ctx)) as client:
         await client.logout()
         if _use_json(ctx):
-            output_json({"status": "logged_out"})
+            output_json({"status": "logged_out", "session": client.session})
         else:
-            console.print("[green]Logged out. Token cache cleared.[/green]")
+            console.print(
+                f"[green]Logged out. Token cache cleared for session '{client.session}'.[/green]"
+            )
+
+
+@auth.command(name="sessions")
+@click.pass_context
+@async_command
+@handle_errors
+async def sessions(ctx: click.Context):
+    """List saved sessions (token instances on this machine)."""
+    names = RobinhoodClient.list_sessions()
+    active = _session(ctx) or DEFAULT_SESSION
+    if _use_json(ctx):
+        output_json({"sessions": names, "active": active})
+        return
+    if not names:
+        console.print("[yellow]No saved sessions. Run 'auth login' to create one.[/yellow]")
+        return
+    rows = [{"session": n, "active": n == active} for n in names]
+    console.print(dict_table(rows, [("session", "Session"), ("active", "Active")], title="Sessions"))
 
 
 # ══════════════════════════════════════════════════════════════════════════════

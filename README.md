@@ -830,6 +830,41 @@ client = RobinhoodClient(cache_path="/custom/path/tokens.enc")
 client = RobinhoodClient(passphrase="TURN_DOWN_FOR_WHAT")
 ```
 
+### SESSIONS - MULTIPLE TOKENS, ONE MACHINE!! WHAT?!
+
+A **session** is a named instance of a stored token. Run more than one account
+(or paper vs. live) on the same machine — each session is its own encrypted
+file. NO supply a name? You get the **default** session, right where the current
+token already lives. NOTHIN' MOVES!! OOOK!
+
+- **Default session**: `~/.tokens/liljon_tokens.enc` (unchanged — old tokens just work). YEAH!!
+- **Named session**: `~/.tokens/liljon_tokens.<name>.enc` — a sibling, fully isolated. WHAT?!
+
+```python
+# Pick a session - JUST NAME IT!! OOOK!
+client = RobinhoodClient(session="trading")
+
+# No name? Default session - SAME AS ALWAYS!! YEAH!!
+client = RobinhoodClient()
+
+# Who's logged in where? - LIST 'EM ALL!! WHAT?!
+RobinhoodClient.list_sessions()   # ['default', 'trading']
+```
+
+From the CLI, `--session` rides on every command:
+
+```bash
+# Log into a named session - SKRRT!!
+uv run python -m liljon --session trading auth login
+
+# See who's saved - OOOK!
+uv run python -m liljon auth sessions
+
+# Status / logout target the chosen session - NO COLLATERAL DAMAGE!! YEAH!!
+uv run python -m liljon --session trading auth status
+uv run python -m liljon --session trading auth logout
+```
+
 ## RUNNING TESTS - MAKE SURE IT WORKS!! YEAH!!
 
 ```bash
