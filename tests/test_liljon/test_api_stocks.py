@@ -21,7 +21,7 @@ def stocks_api(transport):
 
 async def test_get_quotes(stocks_api, httpx_mock):
     httpx_mock.add_response(
-        url="https://api.robinhood.com/marketdata/quotes/?symbols=AAPL,MSFT&bounds=regular&include_bbo_source=false&include_inactive=false",
+        url="https://api.robinhood.com/marketdata/quotes/?symbols=AAPL,MSFT&bounds=regular",
         json={
             "results": [
                 {
@@ -117,7 +117,7 @@ async def test_get_instrument_by_id_with_url(stocks_api, httpx_mock):
 
 async def test_get_fundamentals(stocks_api, httpx_mock):
     httpx_mock.add_response(
-        url="https://api.robinhood.com/fundamentals/AAPL/?bounds=regular&include_inactive=true",
+        url="https://api.robinhood.com/fundamentals/AAPL/?bounds=regular",
         json={"market_cap": "3000000000000", "pe_ratio": "28.5"},
     )
     f = await stocks_api.get_fundamentals("AAPL")
@@ -185,7 +185,7 @@ async def test_get_news_market_wide(stocks_api, httpx_mock):
 
 async def test_get_latest_price(stocks_api, httpx_mock):
     httpx_mock.add_response(
-        url="https://api.robinhood.com/marketdata/quotes/?symbols=AAPL&bounds=regular&include_bbo_source=false&include_inactive=false",
+        url="https://api.robinhood.com/marketdata/quotes/?symbols=AAPL&bounds=regular",
         json={
             "results": [
                 {"symbol": "AAPL", "last_trade_price": "150.25", "trading_halted": False},

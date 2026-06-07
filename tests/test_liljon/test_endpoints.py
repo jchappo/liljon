@@ -25,9 +25,8 @@ def test_pathfinder_urls():
 def test_quotes():
     url = ep.quotes("AAPL,MSFT")
     assert "symbols=AAPL,MSFT" in url
-    assert "bounds=trading" in url
-    assert "include_bbo_source=true" in url
-    assert "include_inactive=false" in url
+    assert "bounds=regular" in url
+    assert "bounds=trading" in ep.quotes("AAPL", bounds="trading")
 
 
 def test_historicals():
